@@ -3,7 +3,7 @@
   "version": "0.1.6",
   "description": "A module help you automate AWS lambda function deployment.",
   "scripts": {
-    "test": "./node_modules/mocha/bin/mocha test/all.js"
+    "test": "node ./node_modules/mocha/bin/mocha test/all.js"
   },
   "repository": {
     "type": "git",
@@ -25,8 +25,9 @@
     "https-proxy-agent": "^1.0.0"
   },
   "devDependencies": {
-    "mocha": "^2.2.1",
     "chai": "^2.1.1",
+    "mocha": "^2.2.1",
+    "mocha-teamcity-reporter": "^1.0.0",
     "node-uuid": "^1.4.3"
   }
 }
