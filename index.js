@@ -38,6 +38,26 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
     MemorySize: config.memorySize
   };
 
+  var updatePushSource = function(callback){
+    if (!config.pushSource) {
+      callback();
+      return;
+    }
+
+    var subParams = {
+      Protocol: 'lambda',
+      Endpoint: config.pushSource.EventSourceArn,
+      TopicArn: config.functionName
+    };
+
+    sns.subscribe(subParams, function(err, data){
+      if (err){
+        logger('failed to subscribe to topic');
+        callback(err);
+      }
+    });
+  };
+
   var updateEventSource = function(callback) {
     if(!config.eventSource) {
       callback();
