@@ -10,8 +10,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
 
   if(!lambda) {
     if("profile" in config) {
-      var credentials = new AWS.SharedIniFileCredentials({profile: config.profile});
-      AWS.config.credentials = credentials;
+      AWS.config.credentials = new AWS.SharedIniFileCredentials({profile: config.profile});
     }
 
     if (process.env.HTTPS_PROXY) {
@@ -112,14 +111,14 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
 
       lambda.updateFunctionCode({FunctionName: params.FunctionName, ZipFile: data}, function(err, data) {
         if (err) {
-          var warning = 'Package upload failed. '
-          warning += 'Check your iam:PassRole permissions.'
+          var warning = 'Package upload failed. ';
+          warning += 'Check your iam:PassRole permissions.';
           gutil.log(warning);
           callback(err)
         } else {
           lambda.updateFunctionConfiguration(params, function(err, data) {
             if (err) {
-              var warning = 'Update function configuration failed. '
+              var warning = 'Update function configuration failed. ';
               logger(warning);
               callback(err);
             } else {
@@ -141,8 +140,8 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       params['Runtime'] = "nodejs";
       lambda.createFunction(params, function(err, data) {
         if (err) {
-          var warning = 'Create function failed. '
-          warning += 'Check your iam:PassRole permissions.'
+          var warning = 'Create function failed. ';
+          warning += 'Check your iam:PassRole permissions.';
           logger(warning);
           callback(err)
         } else {
@@ -158,8 +157,8 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       if (err.statusCode === 404) {
         createFunction(callback);
       } else {
-        var warning = 'AWS API request failed. '
-        warning += 'Check your AWS credentials and permissions.'
+        var warning = 'AWS API request failed. ';
+        warning += 'Check your AWS credentials and permissions.';
         logger(warning);
         callback(err);
       }
