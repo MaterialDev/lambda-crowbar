@@ -56,6 +56,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
     sns.subscribe(subParams, function(err, data){
       if (err){
         logger('failed to subscribe to topic');
+        logger(err);
         callback(err);
       }
     });
