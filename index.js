@@ -94,8 +94,6 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
             if(err) {
               logger("Update event source mapping failed");
               callback(err);
-            } else {
-              callback();
             }
           });
         }
@@ -123,6 +121,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
               callback(err);
             } else {
               updateEventSource(callback);
+              updatePushSource(callback);
             }
           });
         }
