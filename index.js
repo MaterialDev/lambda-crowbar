@@ -45,8 +45,8 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
 
     var subParams = {
       Protocol: 'lambda',
-      Endpoint: config.pushSource.EventSourceArn,
-      TopicArn: config.functionName
+      Endpoint: config.functionName,
+      TopicArn: config.pushSource.TopicArn
     };
     var sns = new AWS.SNS({
       region: config.region,
