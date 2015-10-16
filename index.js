@@ -4,6 +4,7 @@ var extend = require('util')._extend;
 var async = require('async');
 
 exports.deploy = function(codePackage, config, callback, logger, lambda) {
+  var functionArn = "";
   if (!logger) {
     logger = console.log;
   }
@@ -45,7 +46,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
 
     var subParams = {
       Protocol: 'lambda',
-      Endpoint: config.functionName,
+      Endpoint: functionArn,
       TopicArn: config.pushSource.TopicArn
     };
     var sns = new AWS.SNS({
@@ -150,7 +151,9 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
           callback(err)
         } else {
           logger(data);
+          functionArn = data.Configuration.FunctionArn;
           updateEventSource(callback);
+          updatePushSource(callback);
         }
       });
     });
@@ -169,7 +172,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         callback(err);
       }
     } else {
-      logger(data);
+      functionArn = data.Configuration.FunctionArn;
       updateFunction(callback);
     }
   });
