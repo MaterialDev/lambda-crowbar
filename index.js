@@ -149,6 +149,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
           logger(warning);
           callback(err)
         } else {
+          logger(data);
           updateEventSource(callback);
         }
       });
@@ -161,12 +162,14 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       if (err.statusCode === 404) {
         createFunction(callback);
       } else {
+
         var warning = 'AWS API request failed. ';
         warning += 'Check your AWS credentials and permissions.';
         logger(warning);
         callback(err);
       }
     } else {
+      logger(data);
       updateFunction(callback);
     }
   });
