@@ -7,7 +7,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/joshua-peterson-volusion/node-aws-lambda"
+    "url": "https://github.com/VolusionDev/node-aws-lambda"
   },
   "keywords": [
     "aws",
@@ -17,7 +17,7 @@
   "author": "Joshua Peterson",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/joshua-peterson-volusion/node-aws-lambda/issues"
+    "url": "https://github.com/VolusionDev/node-aws-lambda/issues"
   },
   "dependencies": {
     "async": "^1.0.0",
