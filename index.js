@@ -59,7 +59,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         logger('failed to subscribe to topic');
         logger(err);
         callback(err);
-      }
+      }else{logger(data);}
     });
   };
 
