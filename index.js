@@ -59,7 +59,39 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         logger('failed to subscribe to topic');
         logger(err);
         callback(err);
-      }else{logger(data);}
+      }else{
+        var removePermissionParams = {
+          FunctionName: config.functionName,
+          StatementId: config.PushSource.StatementId
+        };
+        lambda.removePermission(removePermissionParams, function(err, data){
+          if (err){ logger(err);}else{
+            logger(data);
+            var permissionParams = {
+              FunctionName: config.functionName,
+              Action: "lambda:InvokeFunction",
+              Principal: "sns.amazonaws.com",
+              StatementId: config.PushSource.StatementId,
+              SourceArn: config.PushSource.TopicArn
+            };
+            lambda.addPermission(permissionParams, function(err, data){
+              if (err){
+                logger('failed to add permission');
+                logger(err);
+                callback(err);
+              }
+              else {
+                logger('succeeded in adding permission');
+                logger(data);
+                callback();
+              }
+
+            });
+          }
+
+        });
+
+      }
     });
   };
 
