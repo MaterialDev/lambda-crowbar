@@ -62,35 +62,39 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       }else{
         var removePermissionParams = {
           FunctionName: config.functionName,
-          StatementId: config.PushSource.StatementId
+          StatementId: config.pushSource.StatementId
         };
         lambda.removePermission(removePermissionParams, function(err, data){
-          if (err){ logger(err);}else{
+          if (err){
+            if (err.statusCode !== 404){
+              logger('unable to delete permission')
+              logger(err);
+            }else{
+              logger('permission does not exist');
+            }}
+          else {
             logger(data);
-            var permissionParams = {
-              FunctionName: config.functionName,
-              Action: "lambda:InvokeFunction",
-              Principal: "sns.amazonaws.com",
-              StatementId: config.PushSource.StatementId,
-              SourceArn: config.PushSource.TopicArn
-            };
-            lambda.addPermission(permissionParams, function(err, data){
-              if (err){
-                logger('failed to add permission');
-                logger(err);
-                callback(err);
-              }
-              else {
-                logger('succeeded in adding permission');
-                logger(data);
-                callback();
-              }
-
-            });
           }
-
+          var permissionParams = {
+            FunctionName: config.functionName,
+            Action: "lambda:InvokeFunction",
+            Principal: "sns.amazonaws.com",
+            StatementId: config.pushSource.StatementId,
+            SourceArn: config.pushSource.TopicArn
+          };
+          lambda.addPermission(permissionParams, function(err, data){
+            if (err){
+              logger('failed to add permission');
+              logger(err);
+              callback(err);
+            }
+            else {
+              logger('succeeded in adding permission');
+              logger(data);
+              callback();
+            }
+          });
         });
-
       }
     });
   };
