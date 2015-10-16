@@ -48,7 +48,11 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       Endpoint: config.pushSource.EventSourceArn,
       TopicArn: config.functionName
     };
-
+    var sns = new AWS.SNS({
+      region: config.region,
+      accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
+      secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
+    });
     sns.subscribe(subParams, function(err, data){
       if (err){
         logger('failed to subscribe to topic');
