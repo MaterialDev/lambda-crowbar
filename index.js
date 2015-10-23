@@ -149,7 +149,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         return callback('Error reading specified package "'+ codePackage + '"');
       }
 
-      lambda.updateFunctionCode({FunctionName: params.FunctionName, ZipFile: data}, function(err, data) {
+      lambda.updateFunctionCode({FunctionName: params.FunctionName, ZipFile: data, Publish: false}, function(err, data) {
         if (err) {
           var warning = 'Package upload failed. ';
           warning += 'Check your iam:PassRole permissions.';
@@ -187,7 +187,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
           callback(err)
         } else {
           logger(data);
-          functionArn = data.Configuration.FunctionArn;
+          functionArn = data.FunctionArn;
           updateEventSource(callback);
           updatePushSource(callback);
         }
@@ -208,6 +208,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         callback(err);
       }
     } else {
+      logger(data);
       functionArn = data.Configuration.FunctionArn;
       updateFunction(callback);
     }
