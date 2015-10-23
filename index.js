@@ -172,7 +172,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
   };
 
   var publishVersion = function(callback){
-    lambda.publishVersion({FunctionName: config.FunctionName}, function(err, data){
+    lambda.publishVersion({FunctionName: config.functionName}, function(err, data){
       if(err){
         logger(err);
       }else{
