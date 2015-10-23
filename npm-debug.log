@@ -1,0 +1,105 @@
+0 info it worked if it ends with ok
+1 verbose cli [ 'node', '/usr/local/bin/npm', 'publish' ]
+2 info using npm@2.11.3
+3 info using node@v0.12.7
+4 verbose publish [ '.' ]
+5 silly cache add args [ '.', null ]
+6 verbose cache add spec .
+7 silly cache add parsed spec { raw: '.',
+7 silly cache add   scope: null,
+7 silly cache add   name: null,
+7 silly cache add   rawSpec: '.',
+7 silly cache add   spec: '/Users/joshua_peterson/node-aws-lambda',
+7 silly cache add   type: 'directory' }
+8 verbose addLocalDirectory /Users/joshua_peterson/.npm/@cthulhudragon/node-aws-lambda/0.7.0/package.tgz not in flight; packing
+9 verbose tar pack [ '/Users/joshua_peterson/.npm/@cthulhudragon/node-aws-lambda/0.7.0/package.tgz',
+9 verbose tar pack   '/Users/joshua_peterson/node-aws-lambda' ]
+10 verbose tarball /Users/joshua_peterson/.npm/@cthulhudragon/node-aws-lambda/0.7.0/package.tgz
+11 verbose folder /Users/joshua_peterson/node-aws-lambda
+12 info prepublish @cthulhudragon/node-aws-lambda@0.7.0
+13 verbose addLocalTarball adding from inside cache /Users/joshua_peterson/.npm/@cthulhudragon/node-aws-lambda/0.7.0/package.tgz
+14 silly cache afterAdd @cthulhudragon/node-aws-lambda@0.7.0
+15 verbose afterAdd /Users/joshua_peterson/.npm/@cthulhudragon/node-aws-lambda/0.7.0/package/package.json not in flight; writing
+16 verbose afterAdd /Users/joshua_peterson/.npm/@cthulhudragon/node-aws-lambda/0.7.0/package/package.json written
+17 silly publish { name: '@cthulhudragon/node-aws-lambda',
+17 silly publish   version: '0.7.0',
+17 silly publish   description: 'A module help you automate AWS lambda function deployment. Forked from node-aws-lambda',
+17 silly publish   scripts: { test: 'node ./node_modules/gulp/bin/gulp test' },
+17 silly publish   repository:
+17 silly publish    { type: 'git',
+17 silly publish      url: 'git+https://github.com/VolusionDev/node-aws-lambda.git' },
+17 silly publish   keywords: [ 'aws', 'lambda', 'deploy' ],
+17 silly publish   author: { name: 'Joshua Peterson' },
+17 silly publish   license: 'MIT',
+17 silly publish   bugs: { url: 'https://github.com/VolusionDev/node-aws-lambda/issues' },
+17 silly publish   dependencies:
+17 silly publish    { async: '^1.0.0',
+17 silly publish      'aws-sdk': '2.x.x',
+17 silly publish      'https-proxy-agent': '^1.0.0' },
+17 silly publish   devDependencies:
+17 silly publish    { chai: '^2.1.1',
+17 silly publish      gulp: '^3.9.0',
+17 silly publish      'gulp-mocha': '^2.1.3',
+17 silly publish      mocha: '^2.2.1',
+17 silly publish      'mocha-teamcity-reporter': '^1.0.0',
+17 silly publish      'node-uuid': '^1.4.3',
+17 silly publish      'teamcity-service-messages': '^0.1.6' },
+17 silly publish   readme: '# node-aws-lambda [![npm version](https://badge.fury.io/js/node-aws-lambda.svg)](http://badge.fury.io/js/node-aws-lambda) [![Build Status](https://snap-ci.com/ThoughtWorksStudios/node-aws-lambda/branch/master/build_image)](https://snap-ci.com/ThoughtWorksStudios/node-aws-lambda/branch/master)\n\nA module helps you automate AWS lambda function deployment.\nAll lambda configuration is managed in the codebase, includes event source mappings. So you can version control everything and automate the deployment instead of click click click in AWS console.\n\nInspired by https://medium.com/@AdamRNeary/a-gulp-workflow-for-amazon-lambda-61c2afd723b6\n\n# Gulp example:\n\ngulpfile.js\n```node\nvar gulp = require(\'gulp\');\nvar zip = require(\'gulp-zip\');\nvar del = require(\'del\');\nvar install = require(\'gulp-install\');\nvar runSequence = require(\'run-sequence\');\nvar awsLambda = require("node-aws-lambda");\n\ngulp.task(\'clean\', function() {\n  return del([\'./dist\', \'./dist.zip\']);\n});\n\ngulp.task(\'js\', function() {\n  return gulp.src(\'index.js\')\n    .pipe(gulp.dest(\'dist/\'));\n});\n\ngulp.task(\'node-mods\', function() {\n  return gulp.src(\'./package.json\')\n    .pipe(gulp.dest(\'dist/\'))\n    .pipe(install({production: true}));\n});\n\ngulp.task(\'zip\', function() {\n  return gulp.src([\'dist/**/*\', \'!dist/package.json\'])\n    .pipe(zip(\'dist.zip\'))\n    .pipe(gulp.dest(\'./\'));\n});\n\ngulp.task(\'upload\', function(callback) {\n  awsLambda.deploy(\'./dist.zip\', require("./lambda-config.js"), callback);\n});\n\ngulp.task(\'deploy\', function(callback) {\n  return runSequence(\n    [\'clean\'],\n    [\'js\', \'node-mods\'],\n    [\'zip\'],\n    [\'upload\'],\n    callback\n  );\n});\n```\nlambda-config.js\n\n```node\nmodule.exports = {\n  accessKeyId: <access key id>,  // optional\n  secretAccessKey: <secret access key>,  // optional\n  profile: <shared credentials profile name>, // optional for loading AWS credientail from custom profile\n  region: \'us-east-1\',\n  handler: \'index.handler\',\n  role: <role arn>,\n  functionName: <function name>,\n  timeout: 10,\n  memorySize: 128,\n  eventSource: {\n    EventSourceArn: <event source such as kinesis ARN>,\n    BatchSize: 200,\n    StartingPosition: "TRIM_HORIZON"\n  }\n}\n````\n\n# Proxy setup\nDeployment via https proxy is supported by setting environment variable "HTTPS_PROXY". For example:\n\n```terminal\n> HTTPS_PROXY="https://myproxy:8080" gulp deploy\n```\n\n# License\n\n(The MIT License)\n\nCopyright (c) 2015 ThoughtWorks Inc.\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n',
+17 silly publish   readmeFilename: 'README.md',
+17 silly publish   gitHead: 'abe00ab941616a1ef3dda15e9de5ac160f70f72d',
+17 silly publish   homepage: 'https://github.com/VolusionDev/node-aws-lambda#readme',
+17 silly publish   _id: '@cthulhudragon/node-aws-lambda@0.7.0',
+17 silly publish   _shasum: '17bc51d695708223ddcc1aa6efbf54da30d29666',
+17 silly publish   _from: '.' }
+18 verbose getPublishConfig undefined
+19 silly mapToRegistry name @cthulhudragon/node-aws-lambda
+20 silly mapToRegistry scope (from package name) @cthulhudragon
+21 verbose mapToRegistry no registry URL found in name for scope @cthulhudragon
+22 silly mapToRegistry using default registry
+23 silly mapToRegistry registry https://registry.npmjs.org/
+24 silly mapToRegistry uri https://registry.npmjs.org/@cthulhudragon%2fnode-aws-lambda
+25 verbose publish registryBase https://registry.npmjs.org/
+26 silly publish uploading /Users/joshua_peterson/.npm/@cthulhudragon/node-aws-lambda/0.7.0/package.tgz
+27 verbose request uri https://registry.npmjs.org/@cthulhudragon%2fnode-aws-lambda
+28 verbose request sending authorization for write operation
+29 info attempt registry request try #1 at 11:44:54 AM
+30 verbose request using bearer token for auth
+31 verbose request id 06a920511e56ea6c
+32 http request PUT https://registry.npmjs.org/@cthulhudragon%2fnode-aws-lambda
+33 http 403 https://registry.npmjs.org/@cthulhudragon%2fnode-aws-lambda
+34 verbose headers { 'content-type': 'application/json',
+34 verbose headers   'cache-control': 'max-age=0',
+34 verbose headers   'content-length': '95',
+34 verbose headers   'accept-ranges': 'bytes',
+34 verbose headers   date: 'Fri, 23 Oct 2015 16:44:55 GMT',
+34 verbose headers   via: '1.1 varnish',
+34 verbose headers   connection: 'keep-alive',
+34 verbose headers   'x-served-by': 'cache-dfw1832-DFW',
+34 verbose headers   'x-cache': 'MISS',
+34 verbose headers   'x-cache-hits': '0',
+34 verbose headers   'x-timer': 'S1445618694.727798,VS0,VE1228' }
+35 verbose request invalidating /Users/joshua_peterson/.npm/registry.npmjs.org/_40cthulhudragon_252fnode-aws-lambda on PUT
+36 error publish Failed PUT 403
+37 verbose stack Error: "You cannot publish over the previously published version 0.7.0." : @cthulhudragon/node-aws-lambda
+37 verbose stack     at CachingRegistryClient.<anonymous> (/usr/local/lib/node_modules/npm/node_modules/npm-registry-client/lib/request.js:247:14)
+37 verbose stack     at Request._callback (/usr/local/lib/node_modules/npm/node_modules/npm-registry-client/lib/request.js:170:14)
+37 verbose stack     at Request.self.callback (/usr/local/lib/node_modules/npm/node_modules/request/request.js:354:22)
+37 verbose stack     at Request.emit (events.js:110:17)
+37 verbose stack     at Request.<anonymous> (/usr/local/lib/node_modules/npm/node_modules/request/request.js:1207:14)
+37 verbose stack     at Request.emit (events.js:129:20)
+37 verbose stack     at IncomingMessage.<anonymous> (/usr/local/lib/node_modules/npm/node_modules/request/request.js:1153:12)
+37 verbose stack     at IncomingMessage.emit (events.js:129:20)
+37 verbose stack     at _stream_readable.js:908:16
+37 verbose stack     at process._tickCallback (node.js:355:11)
+38 verbose statusCode 403
+39 verbose pkgid @cthulhudragon/node-aws-lambda
+40 verbose cwd /Users/joshua_peterson/node-aws-lambda
+41 error Darwin 14.5.0
+42 error argv "node" "/usr/local/bin/npm" "publish"
+43 error node v0.12.7
+44 error npm  v2.11.3
+45 error code E403
+46 error "You cannot publish over the previously published version 0.7.0." : @cthulhudragon/node-aws-lambda
+47 error If you need help, you may report this error at:
+47 error     <https://github.com/npm/npm/issues>
+48 verbose exit [ 1, true ]
