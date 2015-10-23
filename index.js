@@ -3,7 +3,7 @@ var AWS = require('aws-sdk');
 var extend = require('util')._extend;
 var async = require('async');
 
-exports.deploy = function(codePackage, config, callback, logger, lambda, version) {
+exports.deploy = function(codePackage, config, callback, logger, lambda) {
   var functionArn = "";
   if (!logger) {
     logger = console.log;
@@ -172,16 +172,12 @@ exports.deploy = function(codePackage, config, callback, logger, lambda, version
   };
 
   var publishVersion = function(callback){
-    if (!version){
-      callback();
-      return;
-    }
     lambda.publishVersion({FunctionName: config.FunctionName}, function(err, data){
       if(err){
         logger(err);
       }else{
         logger(data);
-        callback;
+        callback();
       }
     });
   };
