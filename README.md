@@ -1,4 +1,4 @@
-# node-aws-lambda [![npm version](https://badge.fury.io/js/node-aws-lambda.svg)](http://badge.fury.io/js/node-aws-lambda) [![Build Status](https://snap-ci.com/ThoughtWorksStudios/node-aws-lambda/branch/master/build_image)](https://snap-ci.com/ThoughtWorksStudios/node-aws-lambda/branch/master)
+# node-aws-lambda 
 
 A module helps you automate AWS lambda function deployment.
 All lambda configuration is managed in the codebase, includes event source mappings. So you can version control everything and automate the deployment instead of click click click in AWS console.
