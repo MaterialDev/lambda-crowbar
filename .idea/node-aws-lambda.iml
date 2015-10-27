@@ -5,6 +5,9 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="node-aws-lambda node_modules" level="project" />
+<<<<<<< HEAD
     <orderEntry type="library" name="Node.js v0.12.7 Core Modules" level="application" />
+=======
+>>>>>>> d547751f395447571d362378799f384793bd36eb
   </component>
 </module>
