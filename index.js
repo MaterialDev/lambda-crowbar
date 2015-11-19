@@ -50,7 +50,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       TopicArn: config.pushSource.TopicArn
     };
     var createParams ={
-      Name: config.pushSource.TopicArn
+      Name: config.pushSource.TopicArn,
       TopicName: config.pushSource.TopicArn
     };
     var listTopicParams = {};
