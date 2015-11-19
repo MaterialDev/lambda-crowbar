@@ -49,8 +49,9 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       Endpoint: functionArn,
       TopicArn: config.pushSource.TopicArn
     };
+    var topicName = config.pushSource.TopicArn.split(":").pop();
     var createParams ={
-      Name: config.pushSource.TopicArn.split(":").pop()
+      Name: topicName
     };
     var listTopicParams = {};
     var sns = new AWS.SNS({
@@ -69,8 +70,8 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
           logger('Topic Names:');
           logger(data.Topics[index].TopicArn);
           logger('Configuration Names:');
-          logger(config.functionName);
-          if (data.Topics[index].TopicArn == config.functionName)
+          logger(topicName);
+          if (data.Topics[index].TopicArn == topicName)
           {
             logger('Topic Found!');
             topicFound = true;
@@ -96,6 +97,8 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
     sns.subscribe(subParams, function(err, data){
       if (err){
         logger('failed to subscribe to topic');
+        logger('Topic Name');
+        logger(subParams.TopicArn);
         logger(err);
         callback(err);
       }else{
