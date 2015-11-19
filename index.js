@@ -54,6 +54,39 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
       secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
     });
+    sns.listTopics(params, function(err, data){
+      if (err){
+        logger('Failed to list to topic');
+        logger(err);
+        callback(err);
+      }else{
+        var topicFound = false;
+        for (var index = 0; index < data.Topics.length; index++){
+          logger('Topic Names:');
+          logger(data.Topics[index].TopicArn);
+          logger('Configuration Names:');
+          logger(config.functionName);
+          if (data.Topics[index].TopicArn == config.functionName)
+          {
+            logger('Topic Found!');
+            topicFound = true;
+            break;
+          }
+        }
+
+        if (topicFound == false)
+        {
+          sns.createTopic(params, function(err, data){
+            if(err)
+            {
+              logger('Failed to create to topic');
+              logger(err);
+              callback(err);
+            }
+          });
+        }
+      }
+    });
     sns.subscribe(subParams, function(err, data){
       if (err){
         logger('failed to subscribe to topic');
