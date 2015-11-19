@@ -51,6 +51,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
     };
     var createParams ={
       Name: config.pushSource.TopicArn
+      TopicName: config.pushSource.TopicArn
     };
     var listTopicParams = {};
     var sns = new AWS.SNS({
@@ -84,6 +85,9 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
             if(err)
             {
               logger('Failed to create to topic');
+              logger('Topic Name');
+              logger(createParams.Name);
+              logger(createParams.TopicName);
               logger(err);
               callback(err);
             }
