@@ -49,12 +49,16 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       Endpoint: functionArn,
       TopicArn: config.pushSource.TopicArn
     };
+    var createParams ={
+      Name: config.pushSource.TopicArn
+    };
+    var listTopicParams = {};
     var sns = new AWS.SNS({
       region: config.region,
       accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
       secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
     });
-    sns.listTopics(params, function(err, data){
+    sns.listTopics(listTopicParams, function(err, data){
       if (err){
         logger('Failed to list to topic');
         logger(err);
@@ -76,7 +80,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
 
         if (topicFound == false)
         {
-          sns.createTopic(params, function(err, data){
+          sns.createTopic(createParams, function(err, data){
             if(err)
             {
               logger('Failed to create to topic');
