@@ -50,7 +50,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       TopicArn: config.pushSource.TopicArn
     };
     var createParams ={
-      Name: config.functionName,
+      Name: config.pushSource.TopicArn.split(":").pop()
     };
     var listTopicParams = {};
     var sns = new AWS.SNS({
