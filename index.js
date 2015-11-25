@@ -43,100 +43,99 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       callback();
       return;
     }
-
-    var subParams = {
-      Protocol: 'lambda',
-      Endpoint: functionArn,
-      TopicArn: config.pushSource.TopicArn
-    };
-    var topicName = config.pushSource.TopicArn.split(":").pop();
-    var createParams ={
-      Name: topicName
-    };
-    var listTopicParams = {};
     var sns = new AWS.SNS({
       region: config.region,
       accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
       secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
     });
-    sns.listTopics(listTopicParams, function(err, data){
-      if (err){
-        logger('Failed to list to topic');
-        logger(err);
-        callback(err);
-      }else{
-        var topicFound = false;
-        for (var index = 0; index < data.Topics.length; index++){
-          logger('Topic Names:');
-          logger(data.Topics[index].TopicArn);
-          logger('Configuration Names:');
-          logger(topicName);
-          if (data.Topics[index].TopicArn == topicName)
-          {
-            logger('Topic Found!');
-            topicFound = true;
-            break;
-          }
-        }
+    for (var topicNameCounter = 0; topicNameCounter < config.pushSource.length; topicNameCounter++) {
+      var subParams = {
+        Protocol: 'lambda',
+        Endpoint: functionArn,
+        TopicArn: config.pushSource[topicNameCounter].TopicArn
+      };
+      var topicName = config.pushSource[topicNameCounter].TopicArn.split(":").pop();
+      var createParams = {
+        Name: topicName
+      };
+      var listTopicParams = {};
 
-        if (topicFound == false)
-        {
-          sns.createTopic(createParams, function(err, data){
-            if(err)
-            {
-              logger('Failed to create to topic');
-              logger('Topic Name');
-              logger(createParams.Name);
-              logger(err);
-              callback(err);
+      sns.listTopics(listTopicParams, function (err, data) {
+        if (err) {
+          logger('Failed to list to topic');
+          logger(err);
+          callback(err);
+        } else {
+          var topicFound = false;
+          for (var index = 0; index < data.Topics.length; index++) {
+            logger('Topic Names:');
+            logger(data.Topics[index].TopicArn);
+            logger('Configuration Names:');
+            logger(topicName);
+            if (data.Topics[index].TopicArn == topicName) {
+              logger('Topic Found!');
+              topicFound = true;
+              break;
             }
-          });
-        }
-      }
-    });
-    sns.subscribe(subParams, function(err, data){
-      if (err){
-        logger('failed to subscribe to topic');
-        logger('Topic Name');
-        logger(subParams.TopicArn);
-        logger(err);
-        callback(err);
-      }else{
-        var removePermissionParams = {
-          FunctionName: config.functionName,
-          StatementId: config.pushSource.StatementId
-        };
-        lambda.removePermission(removePermissionParams, function(err, data){
-          if (err){
-            if (err.statusCode !== 404){
-              logger('unable to delete permission')
-              logger(err);
-            }else{
-              logger('permission does not exist');
-            }}
-          else {
-            logger(data);
           }
-          var permissionParams = {
+
+          if (topicFound == false) {
+            sns.createTopic(createParams, function (err, data) {
+              if (err) {
+                logger('Failed to create to topic');
+                logger('Topic Name');
+                logger(createParams.Name);
+                logger(err);
+                callback(err);
+              }
+            });
+          }
+        }
+      });
+      sns.subscribe(subParams, function(err, data) {
+        if (err) {
+          logger('failed to subscribe to topic');
+          logger('Topic Name');
+          logger(subParams.TopicArn);
+          logger(err);
+          callback(err);
+        } else {
+          var removePermissionParams = {
             FunctionName: config.functionName,
-            Action: "lambda:InvokeFunction",
-            Principal: "sns.amazonaws.com",
-            StatementId: config.pushSource.StatementId,
-            SourceArn: config.pushSource.TopicArn
+            StatementId: subParams.StatementId
           };
-          lambda.addPermission(permissionParams, function(err, data){
-            if (err){
-              logger('failed to add permission');
-              logger(err);
-              callback(err);
+          lambda.removePermission(removePermissionParams, function (err, data) {
+            if (err) {
+              if (err.statusCode !== 404) {
+                logger('unable to delete permission')
+                logger(err);
+              } else {
+                logger('permission does not exist');
+              }
             }
             else {
-              logger('succeeded in adding permission');
               logger(data);
             }
+            var permissionParams = {
+              FunctionName: config.functionName,
+              Action: "lambda:InvokeFunction",
+              Principal: "sns.amazonaws.com",
+              StatementId: config.pushSource[topicNameCounter].StatementId,
+              SourceArn: config.pushSource[topicNameCounter].TopicArn
+            };
+            lambda.addPermission(permissionParams, function (err, data) {
+              if (err) {
+                logger('failed to add permission');
+                logger(err);
+                callback(err);
+              }
+              else {
+                logger('succeeded in adding permission');
+                logger(data);
+              }
+            });
           });
-        });
-      }
+        }
     });
   };
 
