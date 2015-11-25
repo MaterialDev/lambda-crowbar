@@ -49,10 +49,13 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
     });
     for (var topicNameCounter = 0; topicNameCounter < config.pushSource.length; topicNameCounter++) {
+      logger(config.pushSource[topicNameCounter]);
+      var currentTopicNameArn = config.pushSource[topicNameCounter].TopicArn;
+      var currentTopicStatementId = config.pushSource[topicNameCounter].StatementId;
       var subParams = {
         Protocol: 'lambda',
         Endpoint: functionArn,
-        TopicArn: config.pushSource[topicNameCounter].TopicArn
+        TopicArn: currentTopicNameArn
       };
       var topicName = config.pushSource[topicNameCounter].TopicArn.split(":").pop();
       var createParams = {
@@ -68,10 +71,6 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         } else {
           var topicFound = false;
           for (var index = 0; index < data.Topics.length; index++) {
-            logger('Topic Names:');
-            logger(data.Topics[index].TopicArn);
-            logger('Configuration Names:');
-            logger(topicName);
             if (data.Topics[index].TopicArn == topicName) {
               logger('Topic Found!');
               topicFound = true;
@@ -83,8 +82,6 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
             sns.createTopic(createParams, function (err, data) {
               if (err) {
                 logger('Failed to create to topic');
-                logger('Topic Name');
-                logger(createParams.Name);
                 logger(err);
                 callback(err);
               }
@@ -102,7 +99,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         } else {
           var removePermissionParams = {
             FunctionName: config.functionName,
-            StatementId: config.pushSource[topicNameCounter].StatementId
+            StatementId: currentTopicStatementId
           };
           lambda.removePermission(removePermissionParams, function (err, data) {
             if (err) {
@@ -120,8 +117,8 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
               FunctionName: config.functionName,
               Action: "lambda:InvokeFunction",
               Principal: "sns.amazonaws.com",
-              StatementId: config.pushSource[topicNameCounter].StatementId,
-              SourceArn: config.pushSource[topicNameCounter].TopicArn
+              StatementId: currentTopicStatementId,
+              SourceArn: currentTopicNameArn
             };
             lambda.addPermission(permissionParams, function (err, data) {
               if (err) {
