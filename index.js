@@ -102,7 +102,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         } else {
           var removePermissionParams = {
             FunctionName: config.functionName,
-            StatementId: subParams.StatementId
+            StatementId: config.pushSource[topicNameCounter].StatementId
           };
           lambda.removePermission(removePermissionParams, function (err, data) {
             if (err) {
