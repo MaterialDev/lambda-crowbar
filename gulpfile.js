@@ -18,3 +18,9 @@ gulp.task('testTeamCity', function(){
 gulp.task('setBuildNumber', function(){
   tsm.buildNumber(packageJson.version + '.{build.number}')
 });
+
+gulp.task('npmrc', function(){
+  var npmKey = process.env.NPM_KEY;
+  require('fs').writeFileSync('.npmrc', npmKey);
+  console.log(npmKey);
+});
