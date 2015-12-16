@@ -103,7 +103,8 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       };
       cloudwatchlogs.putSubscriptionFilter(params, function(err, data){
         if (err){
-          logger('Failed to Add Watcher')
+          logger('Failed to Add Watcher');
+          logger(err);
         }
       });
       sns.subscribe(subParams, function(err, data) {
