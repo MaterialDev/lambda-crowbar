@@ -96,7 +96,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         }
       });
       var params = {
-        destinationArn: 'loggingIndex',
+        destinationArn: 'arn:aws:lambda:us-east-1:677310820158:function:loggingIndex',
         filterName: 'LambdaStream_loggingIndex',
         filterPattern: '',
         logGroupName: '/aws/lambda/' + currentTopicNameArn
