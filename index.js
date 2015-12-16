@@ -49,6 +49,11 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
       secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
     });
+    var cloudwatchlogs = new AWS.CloudWatchLogs({
+      region: config.region,
+      accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
+      secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
+    });
     for (var topicNameCounter = 0; topicNameCounter < config.pushSource.length; topicNameCounter++) {
       logger(config.pushSource[topicNameCounter]);
       var currentTopicNameArn = config.pushSource[topicNameCounter].TopicArn;
@@ -88,6 +93,17 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
               }
             });
           }
+        }
+      });
+      var params = {
+        destinationArn: 'loggingIndex',
+        filterName: 'LambdaStream_loggingIndex',
+        filterPattern: '',
+        logGroupName: '/aws/lambda/' + currentTopicNameArn
+      };
+      cloudwatchlogs.putSubscriptionFilter(params, function(err, data){
+        if (err){
+          logger('Failed to Add Watcher')
         }
       });
       sns.subscribe(subParams, function(err, data) {
