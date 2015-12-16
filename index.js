@@ -3,6 +3,7 @@ var AWS = require('aws-sdk');
 var extend = require('util')._extend;
 var async = require('async');
 
+
 exports.deploy = function(codePackage, config, callback, logger, lambda) {
   var functionArn = "";
   if (!logger) {
@@ -188,15 +189,12 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
 
       lambda.updateFunctionCode({FunctionName: params.FunctionName, ZipFile: data, Publish: false}, function(err, data) {
         if (err) {
-          var warning = 'Package upload failed. ';
-          warning += 'Check your iam:PassRole permissions.';
-          gutil.log(warning);
+          logger(err);
           callback(err)
         } else {
           lambda.updateFunctionConfiguration(params, function(err, data) {
             if (err) {
-              var warning = 'Update function configuration failed. ';
-              logger(warning);
+              logger(err);
               callback(err);
             } else {
               updateEventSource(callback);
@@ -217,6 +215,23 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         logger(data);
         callback();
       }
+      lambda.listVersionsByFunction({FunctionName: config.functionName}, function(listErr, data){
+        if (listErr){
+          logger(listErr);
+        } else {
+          var last = data.Versions[data.Versions.length - 1].Version;
+          for(var index = 0; index < data.Versions.length; ++index){
+            if (data.Versions[index].Version !== "$LATEST" && data.Versions[index].Version !== last){
+              lambda.deleteFunction({FunctionName: config.functionName, Qualifier: data.Versions[index].Version}, function(deleteErr, deleteData){
+                if(deleteErr){
+                  logger(deleteErr);
+                }
+
+              });
+            }
+          }
+        }
+      })
     });
   };
 
