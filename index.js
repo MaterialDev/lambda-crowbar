@@ -49,11 +49,6 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
       secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
     });
-    var cloudwatchlogs = new AWS.CloudWatchLogs({
-      region: config.region,
-      accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
-      secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
-    });
     for (var topicNameCounter = 0; topicNameCounter < config.pushSource.length; topicNameCounter++) {
       logger(config.pushSource[topicNameCounter]);
       var currentTopicNameArn = config.pushSource[topicNameCounter].TopicArn;
@@ -93,18 +88,6 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
               }
             });
           }
-        }
-      });
-      var params = {
-        destinationArn: 'arn:aws:lambda:us-east-1:677310820158:function:loggingIndex',
-        filterName: 'LambdaStream_loggingIndex',
-        filterPattern: '',
-        logGroupName: '/aws/lambda/' + config.functionName
-      };
-      cloudwatchlogs.putSubscriptionFilter(params, function(err, data){
-        if (err){
-          logger('Failed to Add Watcher');
-          logger(err);
         }
       });
       sns.subscribe(subParams, function(err, data) {
@@ -152,6 +135,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
           });
         }
     });
+    attachLogging(callback);
   }};
 
   var updateEventSource = function(callback) {
@@ -273,6 +257,20 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
           updatePushSource(callback);
         }
       });
+    });
+  };
+
+  var attachLogging = function(callback){
+    var params = {
+      EventSourceArn: "aws/lambda/sendAddOrderEmailProd",
+      FunctionName: "arn:aws:logs:us-east-1:677310820158:log-group:/aws/lambda/sendAddOrderEmailProd:*"
+    };
+    lambda.createEventSourceMapping(params, function(err, data){
+      if(err){
+        logger('Failed To Add Mapping For Logger');
+        logger(err);
+        callback(err);
+      }
     });
   };
 
