@@ -261,9 +261,10 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
   };
 
   var attachLogging = function(callback){
-    var params = extend({
-      FunctionName: "arn:aws:logs:us-east-1:677310820158:log-group:/aws/lambda/sendAddOrderEmailProd:*"
-    }, "aws/lambda/sendAddOrderEmailProd");
+    var params = {
+      FunctionName: 'arn:aws:logs:us-east-1:677310820158:log-group:/aws/lambda/sendAddOrderEmailProd:*',
+      EventSourceArn: 'aws/lambda/sendAddOrderEmailProd',
+      StartingPosition: 'TRIM_HORIZON | LATEST'};
     lambda.createEventSourceMapping(params, function(err, data){
       if(err){
         logger('Failed To Add Mapping For Logger');
