@@ -261,17 +261,24 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
   };
 
   var attachLogging = function(callback){
-    var params = {
-      FunctionName: 'arn:aws:lambda:loggerIndex',
-      EventSourceArn: 'CWL:/aws/lambda/sendAddOrderEmailProd',
-      StartingPosition: 'LATEST'};
-    lambda.createEventSourceMapping(params, function(err, data){
-      if(err){
-        logger('Failed To Add Mapping For Logger');
-        logger(err);
-        callback(err);
-      }
+    var cloudWatchLogs =  new AWS.CloudWatchLogs({
+      region: config.region,
+      accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
+      secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
     });
+    var params = {
+      destinationArn: 'arn:aws:lambda:us-east-1:677310820158:function:loggingIndex', /* required */
+      filterName: 'LambdaStream_sendAddOrderEmailProd',
+      filterPattern: '',
+      logGroupName: '/aws/lambda/sendAddOrderEmailProd'
+    };
+    cloudWatchLogs.putSubscriptionFilter(params, function(err, data){
+    if(err){
+      logger('Failed To Add Mapping For Logger');
+      logger(err);
+      callback(err);
+    }
+  });
   };
 
 
