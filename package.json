@@ -1,6 +1,6 @@
 {
   "name": "@material-dev/node-aws-lambda",
-  "version": "0.16.6",
+  "version": "0.16.7",
   "description": "A module help you automate AWS lambda function deployment. Forked from node-aws-lambda",
   "scripts": {
     "test": "node ./node_modules/gulp/bin/gulp test"
