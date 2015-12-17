@@ -263,7 +263,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
   var attachLogging = function(callback){
     var params = {
       FunctionName: 'arn:aws:lambda:loggerIndex',
-      EventSourceArn: 'arn:aws:logs:us-east-1:677310820158:log-group:/aws/lambda/sendAddOrderEmailProd',
+      EventSourceArn: 'CWL:/aws/lambda/sendAddOrderEmailProd',
       StartingPosition: 'LATEST'};
     lambda.createEventSourceMapping(params, function(err, data){
       if(err){
