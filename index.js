@@ -263,8 +263,8 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
   var attachLogging = function(callback){
     var cloudWatchLogs =  new AWS.CloudWatchLogs({
       region: config.region,
-      accessKeyId: "AKIAILPWDQC73AFC37MQ",
-      secretAccessKey: "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"
+      accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
+      secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
     });
     var params = {
       destinationArn: 'arn:aws:lambda:us-east-1:677310820158:function:loggingIndex', /* required */
