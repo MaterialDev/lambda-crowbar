@@ -283,16 +283,16 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
       secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
     });
-    var params = {
+    var cloudWatchParams = {
       destinationArn: 'arn:aws:lambda:us-east-1:677310820158:function:loggingIndex', /* required */
-      filterName: 'LambdaStream_'+ config.FunctionName,
+      filterName: 'LambdaStream_'+ params.FunctionName,
       filterPattern: '',
-      logGroupName: '/aws/lambda/'+ config.FunctionName
+      logGroupName: '/aws/lambda/'+ params.FunctionName
     };
-    logger('Function Name: ' + config.FunctionName);
+    logger('Function Name: ' + params.FunctionName);
     logger('Filter Name: ' + params.filterName);
     logger('Log Group Name: ' + params.logGroupName);
-    cloudWatchLogs.putSubscriptionFilter(params, function(err, data){
+    cloudWatchLogs.putSubscriptionFilter(cloudWatchParams, function(err, data){
       if(err){
         logger('Failed To Add Mapping For Logger');
         logger(err);
