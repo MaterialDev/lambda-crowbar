@@ -290,8 +290,8 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       logGroupName: '/aws/lambda/'+ params.FunctionName
     };
     logger('Function Name: ' + params.FunctionName);
-    logger('Filter Name: ' + params.filterName);
-    logger('Log Group Name: ' + params.logGroupName);
+    logger('Filter Name: ' + cloudWatchParams.filterName);
+    logger('Log Group Name: ' + cloudWatchParams.logGroupName);
     cloudWatchLogs.putSubscriptionFilter(cloudWatchParams, function(err, data){
       if(err){
         logger('Failed To Add Mapping For Logger');
