@@ -135,7 +135,6 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
           });
         }
     });
-    attachLogging(callback);
   }};
 
   var updateEventSource = function(callback) {
@@ -237,6 +236,31 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
     });
   };
 
+  var createFunction = function(callback) {
+    fs.readFile(codePackage, function(err, data) {
+      if(err) {
+        return callback('Error reading specified package "'+ codePackage + '"');
+      }
+
+      params['Code'] = { ZipFile: data };
+      params['Runtime'] = "nodejs";
+      lambda.createFunction(params, function(err, data) {
+        if (err) {
+          var warning = 'Create function failed. ';
+          warning += 'Check your iam:PassRole permissions.';
+          logger(warning);
+          callback(err)
+        } else {
+          logger(data);
+          functionArn = data.FunctionArn;
+          updateEventSource(callback);
+          updatePushSource(callback);
+          attachLogging(callback);
+        }
+      });
+    });
+  };
+
   var attachLogging = function(callback){
     // Need to add the permission once, but if it fails the second time no worries.
     var permissionParams = {
@@ -248,9 +272,9 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
     lambda.addPermission(permissionParams, function (err, data) {
       if (err) {
         logger(err, err.stack);
-      }  else {
+      }
+      else {
         logger(data);
-        callback()
       }
     });
     var cloudWatchLogs =  new AWS.CloudWatchLogs({
@@ -260,19 +284,33 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
     });
     var params = {
       destinationArn: 'arn:aws:lambda:us-east-1:677310820158:function:loggingIndex', /* required */
-      filterName: 'LambdaStream_' + config.FunctionName,
+      filterName: 'LambdaStream_'+ config.FunctionName,
       filterPattern: '',
-      logGroupName: '/aws/lambda/' + config.FunctionName
+      logGroupName: '/aws/lambda/'+ config.FunctionNam
     };
-    // This only needs to be done once on function creation so failing this step is not
-    // a big deal but it is the only way to do this right now.
     cloudWatchLogs.putSubscriptionFilter(params, function(err, data){
       if(err){
         logger('Failed To Add Mapping For Logger');
         logger(err);
-      } else {
-        logger(data);
       }
     });
   };
+
+  lambda.getFunction({FunctionName: params.FunctionName}, function(err, data) {
+    if (err) {
+      if (err.statusCode === 404) {
+        createFunction(callback);
+      } else {
+
+        var warning = 'AWS API request failed. ';
+        warning += 'Check your AWS credentials and permissions.';
+        logger(warning);
+        callback(err);
+      }
+    } else {
+      logger(data);
+      functionArn = data.Configuration.FunctionArn;
+      updateFunction(callback);
+    }
+  });
 };
