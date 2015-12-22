@@ -275,6 +275,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       }
       else {
         logger(data);
+        callback();
       }
     });
     var cloudWatchLogs =  new AWS.CloudWatchLogs({
@@ -288,6 +289,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       filterPattern: '',
       logGroupName: '/aws/lambda/'+ config.FunctionName
     };
+    logger('Function Name: ' config.FunctionName);
     logger('Filter Name: ' + params.filterName);
     logger('Log Group Name: ' + params.logGroupName);
     cloudWatchLogs.putSubscriptionFilter(params, function(err, data){
