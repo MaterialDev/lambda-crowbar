@@ -191,13 +191,13 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         if (err) {
           logger(err);
           callback(err);
-          throw err;
+          throw true;
         } else {
           lambda.updateFunctionConfiguration(params, function(err, data) {
             if (err) {
               logger(err);
               callback(err);
-              throw err;
+              throw true;
             } else {
               updateEventSource(callback);
               updatePushSource(callback);
@@ -252,7 +252,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
           warning += 'Check your iam:PassRole permissions.';
           logger(warning);
           callback(err);
-          throw err;
+          throw true;
         } else {
           logger(data);
           functionArn = data.FunctionArn;
@@ -313,7 +313,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         warning += 'Check your AWS credentials and permissions.';
         logger(warning);
         callback(err);
-        throw err;
+        throw true;
       }
     } else {
       logger(data);
