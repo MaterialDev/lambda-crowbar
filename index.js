@@ -190,12 +190,14 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       lambda.updateFunctionCode({FunctionName: params.FunctionName, ZipFile: data, Publish: false}, function(err, data) {
         if (err) {
           logger(err);
-          callback(err)
+          callback(err);
+          throw err;
         } else {
           lambda.updateFunctionConfiguration(params, function(err, data) {
             if (err) {
               logger(err);
               callback(err);
+              throw err;
             } else {
               updateEventSource(callback);
               updatePushSource(callback);
@@ -249,7 +251,8 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
           var warning = 'Create function failed. ';
           warning += 'Check your iam:PassRole permissions.';
           logger(warning);
-          callback(err)
+          callback(err);
+          throw err;
         } else {
           logger(data);
           functionArn = data.FunctionArn;
@@ -310,6 +313,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         warning += 'Check your AWS credentials and permissions.';
         logger(warning);
         callback(err);
+        throw err;
       }
     } else {
       logger(data);
