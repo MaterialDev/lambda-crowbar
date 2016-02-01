@@ -28,6 +28,8 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
       secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
     });
+
+    logger("Access Key Id From Deployer: " + config.accessKeyId)
   }
 
   var params = {
