@@ -270,8 +270,8 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
     // Need to add the permission once, but if it fails the second time no worries.
     var permissionParams = {
       Action: 'lambda:InvokeFunction',
-      FunctionName: 'loggingIndex',
-      Principal: 'logs.us-east-1.amazonaws.com',
+      FunctionName: config.loggingLambdaFunctionName,
+      Principal: config.loggingPrincipal,
       StatementId: '1'
     };
     lambda.addPermission(permissionParams, function (err, data) {
@@ -289,7 +289,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
     });
     var cloudWatchParams = {
-      destinationArn: 'arn:aws:lambda:us-east-1:677310820158:function:loggingIndex', /* required */
+      destinationArn: config.loggingArn, /* required */
       filterName: 'LambdaStream_'+ params.FunctionName,
       filterPattern: '',
       logGroupName: '/aws/lambda/'+ params.FunctionName
