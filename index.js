@@ -272,11 +272,15 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       Action: 'lambda:InvokeFunction',
       FunctionName: config.loggingLambdaFunctionName,
       Principal: config.loggingPrincipal,
-      StatementId: '1'
+      StatementId: config.loggingLambdaFunctionName + 'LoggingId'
     };
     lambda.addPermission(permissionParams, function (err, data) {
       if (err) {
-        logger(err, err.stack);
+        if(err.message.match(/The statement id \(.*?\) provided already exists. Please provide a new statement id, or remove the existing statement./i)) {
+          logger('Lambda function already contains loggingIndex [Function: ' + permissionParams.FunctionName + '] [Permission StatementId: ' + permissionParams.StatementId + ' ]');
+        }else {
+          logger(err, err.stack);
+        }
       }
       else {
         logger(data);
