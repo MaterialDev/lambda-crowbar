@@ -2,10 +2,11 @@ var fs = require('fs');
 var AWS = require('aws-sdk');
 var extend = require('util')._extend;
 var async = require('async');
+let HttpsProxyAgent = require('https-proxy-agent');
 
 
 exports.deploy = function(codePackage, config, callback, logger, lambda) {
-  var functionArn = "";
+  var functionArn = '';
   if (!logger) {
     logger = console.log;
   }
@@ -19,17 +20,17 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       if (!AWS.config.httpOptions) {
         AWS.config.httpOptions = {};
       }
-      var HttpsProxyAgent = require('https-proxy-agent');
+
       AWS.config.httpOptions.agent = new HttpsProxyAgent(process.env.HTTPS_PROXY);
     }
 
     lambda = new AWS.Lambda({
       region: config.region,
-      accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
-      secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
+      accessKeyId: "accessKeyId" in config ? config.accessKeyId : '',
+      secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ''
     });
 
-    logger("Access Key Id From Deployer: " + config.accessKeyId)
+    logger(`Access Key Id From Deployer: ${config.accessKeyId}`)
   }
 
   var params = {
@@ -48,8 +49,8 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
     }
     var sns = new AWS.SNS({
       region: config.region,
-      accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
-      secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
+      accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
+      secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
     });
     for (var topicNameCounter = 0; topicNameCounter < config.pushSource.length; topicNameCounter++) {
       logger(config.pushSource[topicNameCounter]);
@@ -60,7 +61,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         Endpoint: functionArn,
         TopicArn: currentTopicNameArn
       };
-      var topicName = config.pushSource[topicNameCounter].TopicArn.split(":").pop();
+      var topicName = config.pushSource[topicNameCounter].TopicArn.split(':').pop();
       var createParams = {
         Name: topicName
       };
@@ -174,7 +175,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
             }, iteratorCallback);
           }, function(err) {
             if(err) {
-              logger("Update event source mapping failed");
+              logger('Update event source mapping failed.');
               callback(err);
             }
           });
@@ -186,7 +187,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
   var updateFunction = function(callback) {
     fs.readFile(codePackage, function(err, data) {
       if(err) {
-        return callback('Error reading specified package "'+ codePackage + '"');
+        return callback(`Error reading specified package '${codePackage}'`);
       }
 
       lambda.updateFunctionCode({FunctionName: params.FunctionName, ZipFile: data, Publish: false}, function(err, data) {
@@ -225,9 +226,10 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
           logger(listErr);
         } else {
           var last = data.Versions[data.Versions.length - 1].Version;
-          for(var index = 0; index < data.Versions.length; ++index){
-            if (data.Versions[index].Version !== "$LATEST" && data.Versions[index].Version !== last){
-              lambda.deleteFunction({FunctionName: config.functionName, Qualifier: data.Versions[index].Version}, function(deleteErr, deleteData){
+          for(let index = 0; index < data.Versions.length; ++index){
+            let version = data.Versions[index].Version;
+            if (version !== "$LATEST" && version !== last){
+              lambda.deleteFunction({FunctionName: config.functionName, Qualifier: version}, function(deleteErr, deleteData){
                 if(deleteErr){
                   logger(deleteErr);
                 }
@@ -250,7 +252,7 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
       params['Runtime'] = "nodejs";
       lambda.createFunction(params, function(err, data) {
         if (err) {
-          var warning = 'Create function failed. ';
+          let warning = 'Create function failed. ';
           warning += 'Check your iam:PassRole permissions.';
           logger(warning);
           callback(err);
@@ -268,16 +270,16 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
 
   var attachLogging = function(callback){
     // Need to add the permission once, but if it fails the second time no worries.
-    var permissionParams = {
+    let permissionParams = {
       Action: 'lambda:InvokeFunction',
       FunctionName: config.loggingLambdaFunctionName,
       Principal: config.loggingPrincipal,
-      StatementId: config.loggingLambdaFunctionName + 'LoggingId'
+      StatementId: `${config.loggingLambdaFunctionName}LoggingId`
     };
-    lambda.addPermission(permissionParams, function (err, data) {
+    lambda.addPermission(permissionParams, (err, data) => {
       if (err) {
         if(err.message.match(/The statement id \(.*?\) provided already exists. Please provide a new statement id, or remove the existing statement./i)) {
-          logger('Lambda function already contains loggingIndex [Function: ' + permissionParams.FunctionName + '] [Permission StatementId: ' + permissionParams.StatementId + ' ]');
+          logger(`Lambda function already contains loggingIndex [Function: ${permissionParams.FunctionName}] [Permission StatementId: ${permissionParams.StatementId}]`);
         }else {
           logger(err, err.stack);
         }
@@ -287,24 +289,27 @@ exports.deploy = function(codePackage, config, callback, logger, lambda) {
         callback();
       }
     });
-    var cloudWatchLogs =  new AWS.CloudWatchLogs({
+    let cloudWatchLogs =  new AWS.CloudWatchLogs({
       region: config.region,
       accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
       secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
     });
-    var cloudWatchParams = {
+    let cloudWatchParams = {
       destinationArn: config.loggingArn, /* required */
-      filterName: 'LambdaStream_'+ params.FunctionName,
+      filterName: `LambdaStream_${params.FunctionName}`,
       filterPattern: '',
-      logGroupName: '/aws/lambda/'+ params.FunctionName
+      logGroupName: `/aws/lambda/${params.FunctionName}`
     };
-    logger('Function Name: ' + params.FunctionName);
-    logger('Filter Name: ' + cloudWatchParams.filterName);
-    logger('Log Group Name: ' + cloudWatchParams.logGroupName);
-    cloudWatchLogs.putSubscriptionFilter(cloudWatchParams, function(err, data){
+    logger(`Function Name: ${params.FunctionName}`);
+    logger(`Filter Name: ${cloudWatchParams.filterName}`);
+    logger(`Log Group Name: ${cloudWatchParams.logGroupName}`);
+    cloudWatchLogs.putSubscriptionFilter(cloudWatchParams, (err, data) => {
       if(err){
         logger('Failed To Add Mapping For Logger');
         logger(err);
+      }
+      else {
+        logger(`Put Subscription Filter. Response: ${JSON.stringify(data)}`);
       }
     });
   };
