@@ -3,12 +3,12 @@ let AWS = require('aws-sdk');
 let extend = require('util')._extend;
 let async = require('async');
 let HttpsProxyAgent = require('https-proxy-agent');
-let Promise = require('bluebird');
+let Bluebird = require('bluebird');
 let __ = require('lodash');
 
 const LAMBDA_RUNTIME = 'nodejs';
 
-export function deployLambda(codePackage, config, callback, logger, lambdaClient) {
+export function deployLambda(codePackage, config, logger, lambdaClient, callback) {
   let functionArn = '';
   if (!logger) {
     logger = console.log;
@@ -36,10 +36,16 @@ export function deployLambda(codePackage, config, callback, logger, lambdaClient
     logger(`Access Key Id From Deployer: ${config.accessKeyId}`);
   }
 
-  var snsClient = new AWS.SNS({
+  let snsClient = new AWS.SNS({
     region: config.region,
     accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
     secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
+  });
+
+  let cloudWatchLogsClient = new AWS.CloudWatchLogs({
+    region: config.region,
+    accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
+    secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
   });
 
   let params = {
@@ -51,7 +57,7 @@ export function deployLambda(codePackage, config, callback, logger, lambdaClient
     MemorySize: config.memorySize
   };
 
-  _getLambdaFunction(lambdaClient, logger, params.FunctionName)
+  return _getLambdaFunction(lambdaClient, logger, params.FunctionName)
     .then((getResult) => {
       if (!getResult.lambdaExists) {
         return _createLambdaFunction(lambdaClient, logger, codePackage, params)
@@ -59,14 +65,10 @@ export function deployLambda(codePackage, config, callback, logger, lambdaClient
             functionArn = createFunctionResult.functionArn;
           })
           .then(() => _updateEventSource(lambdaClient, config, logger))
-          .then(() => {
-
-            if (config.pushSource) {
-              updatePushSource(callback);
-            }
-            attachLogging(callback);
-          }).catch((err) => {
-            logger(`Error: ${err}`);
+          .then(() => _updatePushSource(lambdaClient, snsClient, config, logger, functionArn))
+          .then(() => _attachLogging(lambdaClient, cloudWatchLogsClient, logger, config, params))
+          .catch((err) => {
+            logger(`Error: ${JSON.stringify(err)}`);
             throw true;
           });
       }
@@ -74,217 +76,34 @@ export function deployLambda(codePackage, config, callback, logger, lambdaClient
         functionArn = getResult.functionArn;
         return _updateLambdaFunction(lambdaClient, logger, codePackage, params)
           .then(() => _updateEventSource(lambdaClient, config, logger))
-          .then(() => {
-
-            if (config.pushSource) {
-              updatePushSource(callback);
-            }
-
-            publishVersion(callback);
-            attachLogging(callback);
-          }).catch((err) => {
-            logger(`Error: ${err}`);
+          .then(() => _updatePushSource(lambdaClient, snsClient, config, logger, functionArn))
+          .then(() => _publishLambdaVersion(lambdaClient, logger, config))
+          .then(() => _attachLogging(lambdaClient, cloudWatchLogsClient, logger, config, params))
+          .catch((err) => {
+            logger(`Error: ${JSON.stringify(err)}`);
             throw true;
           });
       }
     })
     .catch((err) => {
-      logger(`Error: ${err}`);
+      logger(`Error: ${JSON.stringify(err)}`);
       throw true;
-    });
-
-  var updatePushSource = function (callback) {
-    if (!config.pushSource) {
-      callback();
-      return;
-    }
-    var sns = new AWS.SNS({
-      region: config.region,
-      accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
-      secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
-    });
-    for (var topicNameCounter = 0; topicNameCounter < config.pushSource.length; topicNameCounter++) {
-      logger(config.pushSource[topicNameCounter]);
-      var currentTopicNameArn = config.pushSource[topicNameCounter].TopicArn;
-      var currentTopicStatementId = config.pushSource[topicNameCounter].StatementId;
-      var subParams = {
-        Protocol: 'lambda',
-        Endpoint: functionArn,
-        TopicArn: currentTopicNameArn
-      };
-      var topicName = config.pushSource[topicNameCounter].TopicArn.split(':').pop();
-      var createParams = {
-        Name: topicName
-      };
-      var listTopicParams = {};
-
-      sns.listTopics(listTopicParams, function (err, data) {
-        if (err) {
-          logger('Failed to list to topic');
-          logger(err);
-          callback(err);
-        } else {
-          var topicFound = false;
-          for (var index = 0; index < data.Topics.length; index++) {
-            if (data.Topics[index].TopicArn == topicName) {
-              logger('Topic Found!');
-              topicFound = true;
-              break;
-            }
-          }
-
-          if (topicFound === false) {
-            sns.createTopic(createParams, function (err, data) {
-              if (err) {
-                logger('Failed to create to topic');
-                logger(err);
-                callback(err);
-              }
-            });
-          }
-        }
-      });
-      sns.subscribe(subParams, function (err, data) {
-        if (err) {
-          logger('failed to subscribe to topic');
-          logger('Topic Name');
-          logger(subParams.TopicArn);
-          logger(err);
-          callback(err);
-        } else {
-          var removePermissionParams = {
-            FunctionName: config.functionName,
-            StatementId: currentTopicStatementId
-          };
-          lambdaClient.removePermission(removePermissionParams, function (err, data) {
-            if (err) {
-              if (err.statusCode !== 404) {
-                logger('unable to delete permission');
-                logger(err);
-              } else {
-                logger('permission does not exist');
-              }
-            }
-            else {
-              logger(data);
-            }
-            var permissionParams = {
-              FunctionName: config.functionName,
-              Action: "lambda:InvokeFunction",
-              Principal: "sns.amazonaws.com",
-              StatementId: currentTopicStatementId,
-              SourceArn: currentTopicNameArn
-            };
-            lambdaClient.addPermission(permissionParams, function (err, data) {
-              if (err) {
-                logger('failed to add permission');
-                logger(err);
-                callback(err);
-              }
-              else {
-                logger('succeeded in adding permission');
-                logger(data);
-              }
-            });
-          });
-        }
-      });
-    }
-  };
-
-  var publishVersion = function (callback) {
-    lambdaClient.publishVersion({FunctionName: config.functionName}, function (err, data) {
-      if (err) {
-        logger(err);
-      } else {
-        logger(data);
-        callback();
-      }
-      lambdaClient.listVersionsByFunction({FunctionName: config.functionName}, function (listErr, data) {
-        if (listErr) {
-          logger(listErr);
-        } else {
-          var last = data.Versions[data.Versions.length - 1].Version;
-          for (let index = 0; index < data.Versions.length; ++index) {
-            let version = data.Versions[index].Version;
-            if (version !== "$LATEST" && version !== last) {
-              lambda.deleteFunction({
-                FunctionName: config.functionName,
-                Qualifier: version
-              }, function (deleteErr, deleteData) {
-                if (deleteErr) {
-                  logger(deleteErr);
-                }
-
-              });
-            }
-          }
-        }
-      });
-    });
-  };
-
-  var attachLogging = function (callback) {
-    // Need to add the permission once, but if it fails the second time no worries.
-    let permissionParams = {
-      Action: 'lambda:InvokeFunction',
-      FunctionName: config.loggingLambdaFunctionName,
-      Principal: config.loggingPrincipal,
-      StatementId: `${config.loggingLambdaFunctionName}LoggingId`
-    };
-    lambdaClient.addPermission(permissionParams, (err, data) => {
-      if (err) {
-        if (err.message.match(/The statement id \(.*?\) provided already exists. Please provide a new statement id, or remove the existing statement./i)) {
-          logger(`Lambda function already contains loggingIndex [Function: ${permissionParams.FunctionName}] [Permission StatementId: ${permissionParams.StatementId}]`);
-        } else {
-          logger(err, err.stack);
-        }
-      }
-      else {
-        logger(data);
-        callback();
-      }
-    });
-    let cloudWatchLogs = new AWS.CloudWatchLogs({
-      region: config.region,
-      accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
-      secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
-    });
-    let cloudWatchParams = {
-      destinationArn: config.loggingArn, /* required */
-      filterName: `LambdaStream_${params.FunctionName}`,
-      filterPattern: '',
-      logGroupName: `/aws/lambda/${params.FunctionName}`
-    };
-    logger(`Function Name: ${params.FunctionName}`);
-    logger(`Filter Name: ${cloudWatchParams.filterName}`);
-    logger(`Log Group Name: ${cloudWatchParams.logGroupName}`);
-    cloudWatchLogs.putSubscriptionFilter(cloudWatchParams, (err, data) => {
-      if (err) {
-        logger('Failed To Add Mapping For Logger');
-        logger(err);
-      }
-      else {
-        logger(`Put Subscription Filter. Response: ${JSON.stringify(data)}`);
-      }
-    });
-  };
-
+    })
+    .asCallback(callback);
 }
 
 /**
  *
  * @param lambdaClient
  * @param functionName
- * @returns {Promise}
- *  Resolved Object:
- *    lambdaExists: boolean flag that is true if lambda exists
- *    functionArn: this is a string that contains arn to the lambda function
- *
+ * @returns {bluebird|exports|module.exports}
+ * Resolved Object:
+ * lambdaExists - boolean flag that is true if lambda exists
+ * functionArn - this is a string that contains arn to the lambda function
  * @private
  */
 let _getLambdaFunction = function (lambdaClient, logger, functionName) {
-  return new Promise((resolve, reject) => {
+  return new Bluebird((resolve, reject) => {
     let getFunctionParams = {
       FunctionName: functionName
     };
@@ -309,8 +128,17 @@ let _getLambdaFunction = function (lambdaClient, logger, functionName) {
   });
 };
 
+/**
+ *
+ * @param lambdaClient
+ * @param logger
+ * @param codePackage
+ * @param params
+ * @returns {bluebird|exports|module.exports}
+ * @private
+ */
 let _createLambdaFunction = function (lambdaClient, logger, codePackage, params) {
-  return new Promise((resolve, reject) => {
+  return new Bluebird((resolve, reject) => {
     logger(`Creating LambdaFunction. [FunctionName: ${params.FunctionName}`);
     let data = fs.readFileSync(codePackage);
 
@@ -328,8 +156,17 @@ let _createLambdaFunction = function (lambdaClient, logger, codePackage, params)
   });
 };
 
+/**
+ *
+ * @param lambdaClient
+ * @param logger
+ * @param codePackage
+ * @param params
+ * @returns {bluebird|exports|module.exports}
+ * @private
+ */
 let _updateLambdaFunction = function (lambdaClient, logger, codePackage, params) {
-  return new Promise((resolve, reject) => {
+  return new Bluebird((resolve, reject) => {
     logger(`Creating LambdaFunction. [FunctionName: ${params.FunctionName}`);
     let data = fs.readFileSync(codePackage);
 
@@ -357,8 +194,16 @@ let _updateLambdaFunction = function (lambdaClient, logger, codePackage, params)
   });
 };
 
+/**
+ *
+ * @param lambdaClient
+ * @param config
+ * @param logger
+ * @returns {bluebird|exports|module.exports}
+ * @private
+ */
 let _updateEventSource = function (lambdaClient, config, logger) {
-  return new Promise((resolve, reject) => {
+  return new Bluebird((resolve, reject) => {
     if (!config.eventSource) {
       resolve();
       return;
@@ -409,115 +254,130 @@ let _updateEventSource = function (lambdaClient, config, logger) {
   });
 };
 
-let _updatePushSource = function (lambdaClient, snsClient, config, logger) {
+/**
+ *
+ * @param lambdaClient
+ * @param snsClient
+ * @param config
+ * @param logger
+ * @param functionArn
+ * @returns {bluebird|exports|module.exports}
+ * @private
+ */
+let _updatePushSource = function (lambdaClient, snsClient, config, logger, functionArn) {
   if (!config.pushSource) {
-    return Promise.resolve(true);
+    return Bluebird.resolve(true);
   }
 
-  return Promise.each(config.pushSource, (currentTopic) => {
-    logger(`Current Topic: ${currentTopic}`);
+  return Bluebird.each(config.pushSource, (currentTopic, currentIndex, length) => {
+    logger(`Executing Topic ${currentIndex} of ${length}`);
+    logger(`Current Topic: ${JSON.stringify(currentTopic)}`);
     let currentTopicNameArn = currentTopic.TopicArn;
     let currentTopicStatementId = currentTopic.StatementId;
     let topicName = currentTopic.TopicArn.split(':').pop();
 
-    let subParams = {
-      Protocol: 'lambda',
-      Endpoint: functionArn,
-      TopicArn: currentTopicNameArn
-    };
-
     return _createTopicIfNotExists(snsClient, topicName)
-      .then(() => _subscribeLambdaToTopic(lambdaClient, snsClient, logger, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId));
+      .then(() => _subscribeLambdaToTopic(lambdaClient, snsClient, logger, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId))
+      .catch((err) => {
+        logger(`Error: ${JSON.stringify(err)}`);
+        throw true;
+      });
   });
 
-    //for (let topicNameCounter = 0; topicNameCounter < config.pushSource.length; topicNameCounter++) {
-    //
-    //  let currentTopic = config.pushSource[topicNameCounter];
-    //  logger(`Current Topic: ${currentTopic}`);
-    //  let currentTopicNameArn = currentTopic.TopicArn;
-    //  let currentTopicStatementId = currentTopic.StatementId;
-    //  let topicName = currentTopic.TopicArn.split(':').pop();
-    //
-    //  let subParams = {
-    //    Protocol: 'lambda',
-    //    Endpoint: functionArn,
-    //    TopicArn: currentTopicNameArn
-    //  };
-    //
-    //  _createTopicIfNotExists(snsClient, topicName)
-    //    .then(() => _subscribeLambdaToTopic(lambdaClient, snsClient, logger, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId));
+  //for (let topicNameCounter = 0; topicNameCounter < config.pushSource.length; topicNameCounter++) {
+  //
+  //  let currentTopic = config.pushSource[topicNameCounter];
+  //  logger(`Current Topic: ${currentTopic}`);
+  //  let currentTopicNameArn = currentTopic.TopicArn;
+  //  let currentTopicStatementId = currentTopic.StatementId;
+  //  let topicName = currentTopic.TopicArn.split(':').pop();
+  //
+  //  let subParams = {
+  //    Protocol: 'lambda',
+  //    Endpoint: functionArn,
+  //    TopicArn: currentTopicNameArn
+  //  };
+  //
+  //  _createTopicIfNotExists(snsClient, topicName)
+  //    .then(() => _subscribeLambdaToTopic(lambdaClient, snsClient, logger, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId));
 
-      //var listTopicParams = {};
-      //
-      //snsClient.listTopics(listTopicParams, function (err, data) {
-      //  if (err) {
-      //    logger(`Failed to list to topic. Error: ${err}`);
-      //    reject(err);
-      //  } else {
-      //    let foundTopic = __.find(data.Topics, (o) => o.TopicArn === topicName);
-      //    if (__.isUndefined(foundTopic)) {
-      //      let createParams = {
-      //        Name: topicName
-      //      };
-      //
-      //      snsClient.createTopic(createParams, function (err, data) {
-      //        if (err) {
-      //          logger(`Failed to create to topic. Error ${err}`);
-      //          reject(err);
-      //        }
-      //      });
-      //    }
-      //  }
-      //});
-
-
-
-      //snsClient.subscribe(subParams, function (err, data) {
-      //  if (err) {
-      //    logger(`Failed to subscribe to topic. [Topic Name: ${topicName}] [TopicArn: ${subParams.TopicArn}] [Error: ${err}]`);
-      //    reject(err);
-      //  } else {
-      //    let removePermissionParams = {
-      //      FunctionName: config.functionName,
-      //      StatementId: currentTopicStatementId
-      //    };
-      //    lambdaClient.removePermission(removePermissionParams, function (err, data) {
-      //      if (err) {
-      //        if (err.statusCode !== 404) {
-      //          logger(`Unable to delete permission. [Error: ${err}]`);
-      //        } else {
-      //          logger('Permission does not exist.');
-      //        }
-      //      }
-      //      else {
-      //        logger(`Permission deleted successfully! [Data: ${JSON.stringify(data)}]`);
-      //      }
-      //
-      //      let permissionParams = {
-      //        FunctionName: config.functionName,
-      //        Action: "lambda:InvokeFunction",
-      //        Principal: "sns.amazonaws.com",
-      //        StatementId: currentTopicStatementId,
-      //        SourceArn: currentTopicNameArn
-      //      };
-      //      lambdaClient.addPermission(permissionParams, function (err, data) {
-      //        if (err) {
-      //          logger(`Failed to add permission. [Error: ${err}]`);
-      //          reject(err);
-      //        }
-      //        else {
-      //          logger(`Succeeded in adding permission. [Data: ${JSON.stringify(data)}]`);
-      //        }
-      //      });
-      //    });
-      //  }
-      //});
+  //var listTopicParams = {};
+  //
+  //snsClient.listTopics(listTopicParams, function (err, data) {
+  //  if (err) {
+  //    logger(`Failed to list to topic. Error: ${err}`);
+  //    reject(err);
+  //  } else {
+  //    let foundTopic = __.find(data.Topics, (o) => o.TopicArn === topicName);
+  //    if (__.isUndefined(foundTopic)) {
+  //      let createParams = {
+  //        Name: topicName
+  //      };
+  //
+  //      snsClient.createTopic(createParams, function (err, data) {
+  //        if (err) {
+  //          logger(`Failed to create to topic. Error ${err}`);
+  //          reject(err);
+  //        }
+  //      });
+  //    }
   //  }
   //});
-}
 
+
+  //snsClient.subscribe(subParams, function (err, data) {
+  //  if (err) {
+  //    logger(`Failed to subscribe to topic. [Topic Name: ${topicName}] [TopicArn: ${subParams.TopicArn}] [Error: ${err}]`);
+  //    reject(err);
+  //  } else {
+  //    let removePermissionParams = {
+  //      FunctionName: config.functionName,
+  //      StatementId: currentTopicStatementId
+  //    };
+  //    lambdaClient.removePermission(removePermissionParams, function (err, data) {
+  //      if (err) {
+  //        if (err.statusCode !== 404) {
+  //          logger(`Unable to delete permission. [Error: ${err}]`);
+  //        } else {
+  //          logger('Permission does not exist.');
+  //        }
+  //      }
+  //      else {
+  //        logger(`Permission deleted successfully! [Data: ${JSON.stringify(data)}]`);
+  //      }
+  //
+  //      let permissionParams = {
+  //        FunctionName: config.functionName,
+  //        Action: "lambda:InvokeFunction",
+  //        Principal: "sns.amazonaws.com",
+  //        StatementId: currentTopicStatementId,
+  //        SourceArn: currentTopicNameArn
+  //      };
+  //      lambdaClient.addPermission(permissionParams, function (err, data) {
+  //        if (err) {
+  //          logger(`Failed to add permission. [Error: ${err}]`);
+  //          reject(err);
+  //        }
+  //        else {
+  //          logger(`Succeeded in adding permission. [Data: ${JSON.stringify(data)}]`);
+  //        }
+  //      });
+  //    });
+  //  }
+  //});
+  //  }
+  //});
+};
+
+/**
+ *
+ * @param snsClient
+ * @param topicName
+ * @returns {bluebird|exports|module.exports}
+ * @private
+ */
 let _createTopicIfNotExists = function (snsClient, topicName) {
-  return new Promise((resolve, reject) => {
+  return new Bluebird((resolve, reject) => {
     var listTopicParams = {};
 
     snsClient.listTopics(listTopicParams, function (err, data) {
@@ -549,8 +409,21 @@ let _createTopicIfNotExists = function (snsClient, topicName) {
   });
 };
 
+/**
+ *
+ * @param lambdaClient
+ * @param snsClient
+ * @param logger
+ * @param config
+ * @param functionArn
+ * @param topicName
+ * @param currentTopicNameArn
+ * @param currentTopicStatementId
+ * @returns {bluebird|exports|module.exports}
+ * @private
+ */
 let _subscribeLambdaToTopic = function (lambdaClient, snsClient, logger, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId) {
-  return new Promise((resolve, reject) => {
+  return new Bluebird((resolve, reject) => {
 
     let subParams = {
       Protocol: 'lambda',
@@ -602,6 +475,190 @@ let _subscribeLambdaToTopic = function (lambdaClient, snsClient, logger, config,
   });
 };
 
+/**
+ *
+ * @param lambdaClient
+ * @param logger
+ * @param config
+ * @returns {bluebird|exports|module.exports}
+ * @private
+ */
+let _publishLambdaVersion = function (lambdaClient, logger, config) {
+  return _publishVersion(lambdaClient, logger, config)
+    .then(() => _listVersionsByFunction(lambdaClient, logger, config))
+    .then((listVersionsResult) => {
+
+      let versionsToDelete = [];
+      let last = listVersionsResult.Versions[listVersionsResult.Versions.length - 1].Version;
+      for (let index = 0; index < listVersionsResult.Versions.length; ++index) {
+        let version = listVersionsResult.Versions[index].Version;
+        if (version !== "$LATEST" && version !== last) {
+          versionsToDelete.push(_deleteLambdaFunctionVersion(lambdaClient, logger, config, version));
+        }
+      }
+
+      return Bluebird.all(versionsToDelete);
+
+    });
+};
+
+/**
+ *
+ * @param lambdaClient
+ * @param logger
+ * @param config
+ * @returns {Promise}
+ * @private
+ */
+let _publishVersion = function (lambdaClient, logger, config) {
+  return new Bluebird((resolve, reject) => {
+    let publishVersionParams = {FunctionName: config.functionName};
+
+    lambdaClient.publishVersion(publishVersionParams, function (err, data) {
+      if (err) {
+        logger(`Error Publishing Version. [Error: ${err}]`);
+        reject(err);
+      } else {
+        logger(`Successfully published version. [Data: ${data}]`);
+        resolve(data);
+      }
+    });
+  });
+};
+
+/**
+ *
+ * @param lambdaClient
+ * @param logger
+ * @param config
+ * @returns {bluebird|exports|module.exports}
+ * @private
+ */
+let _listVersionsByFunction = function (lambdaClient, logger, config) {
+  return new Bluebird((resolve, reject) => {
+    let listVersionsParams = {FunctionName: config.functionName};
+    lambdaClient.listVersionsByFunction(listVersionsParams, function (listErr, data) {
+      if (listErr) {
+        logger(`Error Listing Versions for Lambda Function. [Error: ${listErr}]`);
+        reject(listErr);
+      } else {
+        resolve(data);
+      }
+    });
+  });
+};
+
+/**
+ *
+ * @param lambdaClient
+ * @param logger
+ * @param config
+ * @param version
+ * @returns {bluebird|exports|module.exports}
+ * @private
+ */
+let _deleteLambdaFunctionVersion = function (lambdaClient, logger, config, version) {
+  return new Bluebird((resolve) => {
+
+    let deleteFunctionParams = {
+      FunctionName: config.functionName,
+      Qualifier: version
+    };
+
+    lambdaClient.deleteFunction(deleteFunctionParams, function (err, data) {
+      if (err) {
+        logger(`Failed to delete lambda version. [FunctionName: ${config.functionName}] [Version: ${version}]`);
+      }
+      else {
+        logger(`Successfully deleted lambda version. [FunctionName: ${config.functionName}] [Version: ${version}]`);
+      }
+      resolve();
+    });
+  });
+};
+
+/**
+ *
+ * @param lambdaClient
+ * @param cloudWatchLogsClient
+ * @param logger
+ * @param config
+ * @param params
+ * @returns {*}
+ * @private
+ */
+let _attachLogging = function (lambdaClient, cloudWatchLogsClient, logger, config, params) {
+  return _addLoggingLambdaPermissionToLambda(lambdaClient, logger, config)
+    .then(() => _updateCloudWatchLogsSubscription(cloudWatchLogsClient, logger, config, params));
+};
+
+/**
+ *
+ * @param lambdaClient
+ * @param logger
+ * @param config
+ * @returns {bluebird|exports|module.exports}
+ * @private
+ */
+let _addLoggingLambdaPermissionToLambda = function (lambdaClient, logger, config) {
+  return new Bluebird((resolve, reject) => {
+    // Need to add the permission once, but if it fails the second time no worries.
+    let permissionParams = {
+      Action: 'lambda:InvokeFunction',
+      FunctionName: config.loggingLambdaFunctionName,
+      Principal: config.loggingPrincipal,
+      StatementId: `${config.loggingLambdaFunctionName}LoggingId`
+    };
+    lambdaClient.addPermission(permissionParams, (err, data) => {
+      if (err) {
+        if (err.message.match(/The statement id \(.*?\) provided already exists. Please provide a new statement id, or remove the existing statement./i)) {
+          logger(`Lambda function already contains loggingIndex [Function: ${permissionParams.FunctionName}] [Permission StatementId: ${permissionParams.StatementId}]`);
+          resolve();
+        } else {
+          logger(err, err.stack);
+          reject(err);
+        }
+      }
+      else {
+        logger(data);
+        resolve();
+      }
+    });
+  });
+};
+
+/**
+ *
+ * @param cloudWatchLogsClient
+ * @param logger
+ * @param config
+ * @param params
+ * @returns {bluebird|exports|module.exports}
+ * @private
+ */
+let _updateCloudWatchLogsSubscription = function (cloudWatchLogsClient, logger, config, params) {
+  return new Bluebird((resolve, reject) => {
+    let cloudWatchParams = {
+      destinationArn: config.loggingArn, /* required */
+      filterName: `LambdaStream_${params.FunctionName}`,
+      filterPattern: '',
+      logGroupName: `/aws/lambda/${params.FunctionName}`
+    };
+    logger(`Function Name: ${params.FunctionName}`);
+    logger(`Filter Name: ${cloudWatchParams.filterName}`);
+    logger(`Log Group Name: ${cloudWatchParams.logGroupName}`);
+    cloudWatchLogsClient.putSubscriptionFilter(cloudWatchParams, (err, data) => {
+      if (err) {
+        logger(`Failed To Add Mapping For Logger. [Error: ${err}]`);
+        reject(err);
+      }
+      else {
+        logger(`Put Subscription Filter. Response: ${JSON.stringify(data)}`);
+        resolve();
+      }
+    });
+  });
+};
 
 export function deploy(codePackage, config, callback, logger, lambda) {
   let functionArn = '';
@@ -628,7 +685,7 @@ export function deploy(codePackage, config, callback, logger, lambda) {
       secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ''
     });
 
-    logger(`Access Key Id From Deployer: ${config.accessKeyId}`)
+    logger(`Access Key Id From Deployer: ${config.accessKeyId}`);
   }
 
   let params = {
@@ -765,7 +822,7 @@ export function deploy(codePackage, config, callback, logger, lambda) {
           lambda.removePermission(removePermissionParams, function (err, data) {
             if (err) {
               if (err.statusCode !== 404) {
-                logger('unable to delete permission')
+                logger('unable to delete permission');
                 logger(err);
               } else {
                 logger('permission does not exist');
