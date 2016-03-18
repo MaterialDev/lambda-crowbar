@@ -11,6 +11,16 @@ gulp.task('test', () => {
     .pipe(mocha());
 });
 
+gulp.task('build:lint', () => {
+  return gulp.src('src/**/*.js')
+    .pipe(plugins.jshint({
+      "node": true,
+      "esnext" : 6
+    }))
+    .pipe(plugins.jshint.reporter('jshint-stylish'))
+    .pipe(plugins.jshint.reporter('fail'));
+});
+
 gulp.task('build:babel', (callback) => {
   gulp.src(['src/**/*.js'], {base: "./src"})
     .pipe(plugins.sourcemaps.init())
