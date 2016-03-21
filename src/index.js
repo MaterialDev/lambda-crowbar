@@ -73,10 +73,10 @@ export function deployLambda(codePackage, config, logger, lambdaClient, callback
           });
       }
       else {
-        functionArn = getResult.functionArn;
+        let existingFunctionArn = getResult.functionArn;
         return _updateLambdaFunction(lambdaClient, logger, codePackage, params)
           .then(() => _updateEventSource(lambdaClient, config, logger))
-          .then(() => _updatePushSource(lambdaClient, snsClient, config, logger, functionArn))
+          .then(() => _updatePushSource(lambdaClient, snsClient, config, logger, existingFunctionArn))
           .then(() => _publishLambdaVersion(lambdaClient, logger, config))
           .then(() => _attachLogging(lambdaClient, cloudWatchLogsClient, logger, config, params))
           .catch((err) => {
@@ -110,7 +110,7 @@ let _getLambdaFunction = function (lambdaClient, logger, functionName) {
 
     lambdaClient.getFunction(getFunctionParams, function (err, data) {
       if (err && err.statusCode !== 404) {
-        logger('AWS API request failed. Check your AWS credentials and permissions.');
+        logger(`AWS API request failed. Check your AWS credentials and permissions. [Error: ${JSON.stringify(err)}]`);
         reject(err);
       }
       else if (err && err.statusCode === 404) {
@@ -146,7 +146,7 @@ let _createLambdaFunction = function (lambdaClient, logger, codePackage, params)
     params.Runtime = LAMBDA_RUNTIME;
     lambdaClient.createFunction(params, function (err, data) {
       if (err) {
-        logger(`Create function failed. Check your iam:PassRole permissions. [Error: ${err}]`);
+        logger(`Create function failed. Check your iam:PassRole permissions. [Error: ${JSON.stringify(err)}]`);
         reject(err);
       } else {
         logger(`Created Lambda successfully. [Data: ${JSON.stringify(data)}]`);
@@ -178,15 +178,15 @@ let _updateLambdaFunction = function (lambdaClient, logger, codePackage, params)
 
     lambdaClient.updateFunctionCode(updateFunctionParams, function (err, data) {
       if (err) {
-        logger(`UpdateFunction Error: ${err}`);
+        logger(`UpdateFunction Error: ${JSON.stringify(err)}`);
         reject(err);
       } else {
         lambdaClient.updateFunctionConfiguration(params, function (err, data) {
           if (err) {
-            logger(`UpdateFunctionConfiguration Error: ${err}`);
+            logger(`UpdateFunctionConfiguration Error: ${JSON.stringify(err)}`);
             reject(err);
           } else {
-            logger(`Successfully updated lambda. [FunctionName: ${params.FunctionName}] [Data: ${JSON.stringify(data)}]`)
+            logger(`Successfully updated lambda. [FunctionName: ${params.FunctionName}] [Data: ${JSON.stringify(data)}]`);
             resolve();
           }
         });
@@ -616,7 +616,7 @@ let _addLoggingLambdaPermissionToLambda = function (lambdaClient, logger, config
           logger(`Lambda function already contains loggingIndex [Function: ${permissionParams.FunctionName}] [Permission StatementId: ${permissionParams.StatementId}]`);
           resolve();
         } else {
-          logger(err, err.stack);
+          logger(`Error Adding Logging Permission to Lambda. [Error: ${JSON.stringify(err)}]`, err.stack);
           reject(err);
         }
       }
@@ -650,8 +650,17 @@ let _updateCloudWatchLogsSubscription = function (cloudWatchLogsClient, logger, 
     logger(`Log Group Name: ${cloudWatchParams.logGroupName}`);
     cloudWatchLogsClient.putSubscriptionFilter(cloudWatchParams, (err, data) => {
       if (err) {
-        logger(`Failed To Add Mapping For Logger. [Error: ${JSON.stringify(err)}]`);
-        reject(err);
+        if (err.message.match(/The specified log group does not exist./i)) {
+          //this error shouldn't stop the deploy since its due to the lambda having never been executed in order to create the log group in Cloud Watch Logs,
+          // so we are going to ignore this error
+          // ..we should recover from this by creating the log group or it will be resolved on next execution after the lambda has been run once
+          logger(`Failed to add subscription filter to lambda due it log group not existing.  [LogGroupName: ${cloudWatchParams.logGroupName}][FilterName: ${cloudWatchParams.filterName}]`);
+          resolve();
+        }
+        else {
+          logger(`Failed To Add Mapping For Logger. [Error: ${JSON.stringify(err)}]`);
+          reject(err);
+        }
       }
       else {
         logger(`Successfully added subscription Filter. [LogGroupName: ${cloudWatchParams.logGroupName}][FilterName: ${cloudWatchParams.filterName}] [Response: ${JSON.stringify(data)}]`);
@@ -704,8 +713,8 @@ export function deploy(codePackage, config, callback, logger, lambda) {
         return callback('Error reading specified package "' + codePackage + '"');
       }
 
-      params['Code'] = {ZipFile: data};
-      params['Runtime'] = "nodejs";
+      params.Code = {ZipFile: data};
+      params.Runtime = "nodejs";
       lambda.createFunction(params, function (err, data) {
         if (err) {
           let warning = 'Create function failed. ';
