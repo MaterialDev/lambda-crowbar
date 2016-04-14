@@ -54,7 +54,8 @@ export function deployLambda(codePackage, config, logger, lambdaClient, callback
     Handler: config.handler,
     Role: config.role,
     Timeout: config.timeout,
-    MemorySize: config.memorySize
+    MemorySize: config.memorySize,
+    Runtime: config.runtime || LAMBDA_RUNTIME
   };
 
   return _getLambdaFunction(lambdaClient, logger, params.FunctionName)
@@ -143,7 +144,6 @@ let _createLambdaFunction = function (lambdaClient, logger, codePackage, params)
     let data = fs.readFileSync(codePackage);
 
     params.Code = {ZipFile: data};
-    params.Runtime = LAMBDA_RUNTIME;
     lambdaClient.createFunction(params, function (err, data) {
       if (err) {
         logger(`Create function failed. Check your iam:PassRole permissions. [Error: ${JSON.stringify(err)}]`);
