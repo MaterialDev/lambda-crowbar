@@ -4,6 +4,7 @@ let extend = require('util')._extend;
 let async = require('async');
 let HttpsProxyAgent = require('https-proxy-agent');
 let Bluebird = require('bluebird');
+let retry = require('bluebird-retry');
 let __ = require('lodash');
 
 const LAMBDA_RUNTIME = 'nodejs';
@@ -67,7 +68,10 @@ export function deployLambda(codePackage, config, logger, lambdaClient, callback
           })
           .then(() => _updateEventSource(lambdaClient, config, logger))
           .then(() => _updatePushSource(lambdaClient, snsClient, config, logger, functionArn))
-          .then(() => _attachLogging(lambdaClient, cloudWatchLogsClient, logger, config, params))
+          .then(() => {
+            let localAttachLoggingFunction = () => {return _attachLogging(lambdaClient, cloudWatchLogsClient, logger, config, params)};
+            return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
+          })
           .catch((err) => {
             logger(`Error: ${JSON.stringify(err)}`);
             throw true;
@@ -79,7 +83,10 @@ export function deployLambda(codePackage, config, logger, lambdaClient, callback
           .then(() => _updateEventSource(lambdaClient, config, logger))
           .then(() => _updatePushSource(lambdaClient, snsClient, config, logger, existingFunctionArn))
           .then(() => _publishLambdaVersion(lambdaClient, logger, config))
-          .then(() => _attachLogging(lambdaClient, cloudWatchLogsClient, logger, config, params))
+          .then(() => {
+            let localAttachLoggingFunction = () => {return _attachLogging(lambdaClient, cloudWatchLogsClient, logger, config, params)};
+            return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
+          })
           .catch((err) => {
             logger(`Error: ${JSON.stringify(err)}`);
             throw true;
@@ -284,90 +291,6 @@ let _updatePushSource = function (lambdaClient, snsClient, config, logger, funct
         throw true;
       });
   });
-
-  //for (let topicNameCounter = 0; topicNameCounter < config.pushSource.length; topicNameCounter++) {
-  //
-  //  let currentTopic = config.pushSource[topicNameCounter];
-  //  logger(`Current Topic: ${currentTopic}`);
-  //  let currentTopicNameArn = currentTopic.TopicArn;
-  //  let currentTopicStatementId = currentTopic.StatementId;
-  //  let topicName = currentTopic.TopicArn.split(':').pop();
-  //
-  //  let subParams = {
-  //    Protocol: 'lambda',
-  //    Endpoint: functionArn,
-  //    TopicArn: currentTopicNameArn
-  //  };
-  //
-  //  _createTopicIfNotExists(snsClient, topicName)
-  //    .then(() => _subscribeLambdaToTopic(lambdaClient, snsClient, logger, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId));
-
-  //var listTopicParams = {};
-  //
-  //snsClient.listTopics(listTopicParams, function (err, data) {
-  //  if (err) {
-  //    logger(`Failed to list to topic. Error: ${err}`);
-  //    reject(err);
-  //  } else {
-  //    let foundTopic = __.find(data.Topics, (o) => o.TopicArn === topicName);
-  //    if (__.isUndefined(foundTopic)) {
-  //      let createParams = {
-  //        Name: topicName
-  //      };
-  //
-  //      snsClient.createTopic(createParams, function (err, data) {
-  //        if (err) {
-  //          logger(`Failed to create to topic. Error ${err}`);
-  //          reject(err);
-  //        }
-  //      });
-  //    }
-  //  }
-  //});
-
-
-  //snsClient.subscribe(subParams, function (err, data) {
-  //  if (err) {
-  //    logger(`Failed to subscribe to topic. [Topic Name: ${topicName}] [TopicArn: ${subParams.TopicArn}] [Error: ${err}]`);
-  //    reject(err);
-  //  } else {
-  //    let removePermissionParams = {
-  //      FunctionName: config.functionName,
-  //      StatementId: currentTopicStatementId
-  //    };
-  //    lambdaClient.removePermission(removePermissionParams, function (err, data) {
-  //      if (err) {
-  //        if (err.statusCode !== 404) {
-  //          logger(`Unable to delete permission. [Error: ${err}]`);
-  //        } else {
-  //          logger('Permission does not exist.');
-  //        }
-  //      }
-  //      else {
-  //        logger(`Permission deleted successfully! [Data: ${JSON.stringify(data)}]`);
-  //      }
-  //
-  //      let permissionParams = {
-  //        FunctionName: config.functionName,
-  //        Action: "lambda:InvokeFunction",
-  //        Principal: "sns.amazonaws.com",
-  //        StatementId: currentTopicStatementId,
-  //        SourceArn: currentTopicNameArn
-  //      };
-  //      lambdaClient.addPermission(permissionParams, function (err, data) {
-  //        if (err) {
-  //          logger(`Failed to add permission. [Error: ${err}]`);
-  //          reject(err);
-  //        }
-  //        else {
-  //          logger(`Succeeded in adding permission. [Data: ${JSON.stringify(data)}]`);
-  //        }
-  //      });
-  //    });
-  //  }
-  //});
-  //  }
-  //});
 };
 
 /**
@@ -590,7 +513,15 @@ let _deleteLambdaFunctionVersion = function (lambdaClient, logger, config, versi
  */
 let _attachLogging = function (lambdaClient, cloudWatchLogsClient, logger, config, params) {
   return _addLoggingLambdaPermissionToLambda(lambdaClient, logger, config)
-    .then(() => _updateCloudWatchLogsSubscription(cloudWatchLogsClient, logger, config, params));
+    .then(() => _updateCloudWatchLogsSubscription(cloudWatchLogsClient, logger, config, params))
+    .catch(err => {
+      let parsedStatusCode = __.get(err, 'statusCode', '');
+      logger(`Error occurred in _attachLogging. [StatusCode: ${parsedStatusCode}]`);
+      if(parsedStatusCode !== 429 && err.statusCode !== '429') {
+        logger(`Recieved a non-retry throttle error`);
+        throw new retry.StopError(`Recieved non-retry throttle error.  [Error: ${JSON.stringify(err)}]`);
+      }
+    });
 };
 
 /**
@@ -669,5 +600,3 @@ let _updateCloudWatchLogsSubscription = function (cloudWatchLogsClient, logger, 
     });
   });
 };
-
-
