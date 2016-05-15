@@ -512,6 +512,9 @@ let _deleteLambdaFunctionVersion = function (lambdaClient, logger, config, versi
  * @private
  */
 let _attachLogging = function (lambdaClient, cloudWatchLogsClient, logger, config, params) {
+  if (!config.logging) {
+    return Promise.resolve('no logging to attach');
+  }
   return _addLoggingLambdaPermissionToLambda(lambdaClient, logger, config)
     .then(() => _updateCloudWatchLogsSubscription(cloudWatchLogsClient, logger, config, params))
     .catch(err => {
@@ -537,9 +540,9 @@ let _addLoggingLambdaPermissionToLambda = function (lambdaClient, logger, config
     // Need to add the permission once, but if it fails the second time no worries.
     let permissionParams = {
       Action: 'lambda:InvokeFunction',
-      FunctionName: config.loggingLambdaFunctionName,
-      Principal: config.loggingPrincipal,
-      StatementId: `${config.loggingLambdaFunctionName}LoggingId`
+      FunctionName: config.logging.LambdaFunctionName,
+      Principal: config.logging.Principal,
+      StatementId: `${config.logging.LambdaFunctionName}LoggingId`
     };
     lambdaClient.addPermission(permissionParams, (err, data) => {
       if (err) {
@@ -571,7 +574,7 @@ let _addLoggingLambdaPermissionToLambda = function (lambdaClient, logger, config
 let _updateCloudWatchLogsSubscription = function (cloudWatchLogsClient, logger, config, params) {
   return new Bluebird((resolve, reject) => {
     let cloudWatchParams = {
-      destinationArn: config.loggingArn, /* required */
+      destinationArn: config.logging.Arn, /* required */
       filterName: `LambdaStream_${params.FunctionName}`,
       filterPattern: '',
       logGroupName: `/aws/lambda/${params.FunctionName}`
