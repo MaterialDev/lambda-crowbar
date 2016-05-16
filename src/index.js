@@ -7,7 +7,7 @@ let Bluebird = require('bluebird');
 let retry = require('bluebird-retry');
 let __ = require('lodash');
 
-const LAMBDA_RUNTIME = 'nodejs';
+const LAMBDA_RUNTIME = 'nodejs4.3';
 
 export function deployLambda(codePackage, config, logger, lambdaClient, callback) {
   let functionArn = '';
