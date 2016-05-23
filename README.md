@@ -7,7 +7,7 @@ Inspired by https://medium.com/@AdamRNeary/a-gulp-workflow-for-amazon-lambda-61c
 
 # Gulp example:
 
-gulpfile.js
+gulpfile.babel.js
 ```node
 var gulp = require('gulp');
 var zip = require('gulp-zip');
