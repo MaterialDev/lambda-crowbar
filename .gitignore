@@ -2,4 +2,3 @@
 .idea
 npm-debug.log
 .npmrc
-build/
