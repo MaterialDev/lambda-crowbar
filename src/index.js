@@ -14,7 +14,6 @@ export function deployLambda(codePackage, config, logger, lambdaClient, callback
   if (!logger) {
     logger = console.log;
   }
-
   if (!lambdaClient) {
     if ("profile" in config) {
       AWS.config.credentials = new AWS.SharedIniFileCredentials({profile: config.profile});
