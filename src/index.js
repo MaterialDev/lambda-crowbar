@@ -10,6 +10,72 @@ let __ = require('lodash');
 const LAMBDA_RUNTIME = 'nodejs4.3';
 
 export function deployLambda(codePackage, config, logger, lambdaClient, callback) {
+  return _deployLambdaFunction(codePackage, config, logger, lambdaClient)
+    .asCallback(callback);
+}
+
+/**
+ * deploys a lambda, creates a rule, and then binds the lambda to the rule by creating a target
+ * @param {file} codePackage a zip of the collection
+ * @param {object} config note: should include the rule property that is an object of: {name, scheduleExpression, isEnabled, role, targetInput} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
+ * @param logger
+ * @param lambdaClient
+ * @param {function} callback the arguments are error and data
+ *
+ */
+export function deployScheduleLambda(codePackage, config, logger, lambdaClient, callback) {
+  let functionArn = '';
+
+  return _deployLambdaFunction(codePackage, config, logger, lambdaClient, callback)
+      .then(result => {
+        functionArn = result.functionArn;
+
+        if (!config.hasOwnProperty('rule') &&
+            (!config.rule.hasOwnProperty('name') ||
+             !config.rule.hasOwnProperty('scheduleExpression') ||
+             !config.rule.hasOwnProperty('isEnabled') ||
+             !config.rule.hasOwnProperty('role'))){
+          throw new Error('rule is required. Please include a property called rule that is an object which has the following: {name, scheduleExpression, isEnabled, role}');
+        }
+
+       return _createCloudWatchEventRuleFunction(config.rule);
+      }).then(eventResult => {
+        let targetInput = config.rule.targetInput ? JSON.stringify(config.rule.targetInput) : null;
+        return _createCloudWatchTargetsFunction({Rule: config.rule.name, Targets: [{Id: `${config.functionName}-${config.rule.name}`, Arn: functionArn, Input: targetInput}]})
+      }).catch((err) => {
+        logger(`Error: ${JSON.stringify(err)}`);
+        throw true;
+      }).asCallback(callback)
+}
+
+/**
+ * creates a rule
+ * @param {object} config should include the rule property that is an object of: {name, scheduleExpression, isEnabled, role, targetInput} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
+ * @param {function} callback
+ */
+export function createCloudWatchEventRule(config, callback){
+  return _createCloudWatchEventRuleFunction(config)
+      .catch((err) => {
+        logger(`Error: ${JSON.stringify(err)}`);
+        throw true;
+      }).asCallback(callback);
+}
+
+/**
+ * sets up a target, which creates the binding of a arn to a cloud watch event rule
+ * @param {object} config {Rule, Targets} Rule is string (name of the rule, Targets is an array of {Arn *required*, Id *required*, Input, InputPath}. Arn of source linked to target, Id is a unique name for the target, Input the json
+ * @param {function} callback
+ */
+export function createCloudWatchTargets(config, callback){
+  return _createCloudWatchTargetsFunction(config)
+      .catch((err) => {
+        logger(`Error: ${JSON.stringify(err)}`);
+        throw true;
+      })
+      .asCallback(callback)
+}
+
+let _deployLambdaFunction = function(codePackage, config, logger, lambdaClient){
   let functionArn = '';
   if (!logger) {
     logger = console.log;
@@ -59,49 +125,107 @@ export function deployLambda(codePackage, config, logger, lambdaClient, callback
   };
 
   return _getLambdaFunction(lambdaClient, logger, params.FunctionName)
-    .then((getResult) => {
-      if (!getResult.lambdaExists) {
-        return _createLambdaFunction(lambdaClient, logger, codePackage, params)
-          .then((createFunctionResult) => {
-            functionArn = createFunctionResult.functionArn;
-          })
-          .then(() => _updateEventSource(lambdaClient, config, logger))
-          .then(() => _updatePushSource(lambdaClient, snsClient, config, logger, functionArn))
-          .then(() => {
-            let localAttachLoggingFunction = () => {return _attachLogging(lambdaClient, cloudWatchLogsClient, logger, config, params)};
-            return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
-          })
-          .catch((err) => {
-            logger(`Error: ${JSON.stringify(err)}`);
-            throw true;
-          });
+      .then((getResult) => {
+        if (!getResult.lambdaExists) {
+          return _createLambdaFunction(lambdaClient, logger, codePackage, params)
+              .then((createFunctionResult) => {
+                functionArn = createFunctionResult.functionArn;
+              })
+              .then(() => _updateEventSource(lambdaClient, config, logger))
+              .then(() => _updatePushSource(lambdaClient, snsClient, config, logger, functionArn))
+              .then(() => {
+                let localAttachLoggingFunction = () => {return _attachLogging(lambdaClient, cloudWatchLogsClient, logger, config, params)};
+                return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
+              })
+              .catch((err) => {
+                logger(`Error: ${JSON.stringify(err)}`);
+                throw true;
+              });
+        }else {
+          let existingFunctionArn = getResult.functionArn;
+          return _updateLambdaFunction(lambdaClient, logger, codePackage, params)
+              .then(() => _updateEventSource(lambdaClient, config, logger))
+              .then(() => _updatePushSource(lambdaClient, snsClient, config, logger, existingFunctionArn))
+              .then(() => _publishLambdaVersion(lambdaClient, logger, config))
+              .then(() => {
+                let localAttachLoggingFunction = () => {return _attachLogging(lambdaClient, cloudWatchLogsClient, logger, config, params)};
+                return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
+              })
+              .catch((err) => {
+                logger(`Error: ${JSON.stringify(err)}`);
+                throw true;
+              });
+        }
+      })
+      .catch((err) => {
+        logger(`Error: ${JSON.stringify(err)}`);
+        throw true;
+      });
+};
+
+/**
+ * Creates or Updates rules, this means you can disable or enable the state of this
+ * @param {object} config {name, scheduleExpression, isEnabled, role} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
+ * @returns {Promise<object>|Promise<Error>}
+ * @private
+ */
+let _createCloudWatchEventRuleFunction = function (config) {
+  /* params
+   {Name: 'STRING_VALUE', // required!//
+    Description: 'STRING_VALUE',
+    EventPattern: 'STRING_VALUE',
+    RoleArn: 'STRING_VALUE',
+    ScheduleExpression: 'STRING_VALUE',
+    State: 'ENABLED | DISABLED' }
+  */
+
+  let params = {
+    Name: config.name,
+    ScheduleExpression: config.scheduleExpression,
+    RoleArn: config.role,
+    State: config.isEnabled ? 'ENABLED' : 'DISABLED'
+  };
+
+  let cloudWatchEvents = new AWS.CloudWatchEvents({
+    region: config.region,
+    accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
+    secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
+  });
+
+  return new Bluebird((resolve, reject) => {
+    cloudWatchEvents.putRule(params, function (err, data) {
+      if (err) {
+        return reject(err);
       }
-      else {
-        let existingFunctionArn = getResult.functionArn;
-        return _updateLambdaFunction(lambdaClient, logger, codePackage, params)
-          .then(() => _updateEventSource(lambdaClient, config, logger))
-          .then(() => _updatePushSource(lambdaClient, snsClient, config, logger, existingFunctionArn))
-          .then(() => _publishLambdaVersion(lambdaClient, logger, config))
-          .then(() => {
-            let localAttachLoggingFunction = () => {return _attachLogging(lambdaClient, cloudWatchLogsClient, logger, config, params)};
-            return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
-          })
-          .catch((err) => {
-            logger(`Error: ${JSON.stringify(err)}`);
-            throw true;
-          });
+
+      return resolve(data);
+    });
+  });
+};
+
+let _createCloudWatchTargetsFunction = function(config) {
+  let cloudWatchEvents = new AWS.CloudWatchEvents({
+    region: config.region,
+    accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
+    secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
+  });
+
+  //targets[{Id, Arn, Input}] Input is the JSON text sent to target
+  return new Bluebird((resolve, reject) => {
+    cloudWatchEvents.putTargets(params, function (err, data) {
+      if (err) {
+        return reject(err);
       }
-    })
-    .catch((err) => {
-      logger(`Error: ${JSON.stringify(err)}`);
-      throw true;
-    })
-    .asCallback(callback);
-}
+
+      return resolve(data);
+    });
+  });
+};
 
 /**
  *
  * @param lambdaClient
+ * @param logger
  * @param functionName
  * @returns {bluebird|exports|module.exports}
  * Resolved Object:
