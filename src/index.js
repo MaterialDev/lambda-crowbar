@@ -118,7 +118,7 @@ let _deployLambdaFunction = function(codePackage, config, logger, lambdaClient){
     FunctionName: config.functionName,
     Description: config.description,
     Handler: config.handler,
-    Role: config.role,
+    Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution',
     Timeout: config.timeout || 10,
     MemorySize: config.memorySize || 128,
     Runtime: config.runtime || LAMBDA_RUNTIME
@@ -182,7 +182,7 @@ let _createCloudWatchEventRuleFunction = function (config) {
   let params = {
     Name: config.name,
     ScheduleExpression: config.scheduleExpression,
-    RoleArn: config.role,
+    Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution',
     State: config.isEnabled ? 'ENABLED' : 'DISABLED'
   };
 
