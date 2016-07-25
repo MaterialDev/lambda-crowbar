@@ -119,8 +119,8 @@ let _deployLambdaFunction = function(codePackage, config, logger, lambdaClient){
     Description: config.description,
     Handler: config.handler,
     Role: config.role,
-    Timeout: config.timeout,
-    MemorySize: config.memorySize,
+    Timeout: config.timeout || 10,
+    MemorySize: config.memorySize || 128,
     Runtime: config.runtime || LAMBDA_RUNTIME
   };
 

@@ -7,6 +7,9 @@ Object.defineProperty(exports, "__esModule", {
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
 
 exports.deployLambda = deployLambda;
+exports.deployScheduleLambda = deployScheduleLambda;
+exports.createCloudWatchEventRule = createCloudWatchEventRule;
+exports.createCloudWatchTargets = createCloudWatchTargets;
 var fs = require('fs');
 var AWS = require('aws-sdk');
 var extend = require('util')._extend;
@@ -19,6 +22,63 @@ var __ = require('lodash');
 var LAMBDA_RUNTIME = 'nodejs4.3';
 
 function deployLambda(codePackage, config, logger, lambdaClient, callback) {
+  return _deployLambdaFunction(codePackage, config, logger, lambdaClient).asCallback(callback);
+}
+
+/**
+ * deploys a lambda, creates a rule, and then binds the lambda to the rule by creating a target
+ * @param {file} codePackage a zip of the collection
+ * @param {object} config note: should include the rule property that is an object of: {name, scheduleExpression, isEnabled, role, targetInput} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
+ * @param logger
+ * @param lambdaClient
+ * @param {function} callback the arguments are error and data
+ *
+ */
+function deployScheduleLambda(codePackage, config, logger, lambdaClient, callback) {
+  var functionArn = '';
+
+  return _deployLambdaFunction(codePackage, config, logger, lambdaClient, callback).then(function (result) {
+    functionArn = result.functionArn;
+
+    if (!config.hasOwnProperty('rule') && (!config.rule.hasOwnProperty('name') || !config.rule.hasOwnProperty('scheduleExpression') || !config.rule.hasOwnProperty('isEnabled') || !config.rule.hasOwnProperty('role'))) {
+      throw new Error('rule is required. Please include a property called rule that is an object which has the following: {name, scheduleExpression, isEnabled, role}');
+    }
+
+    return _createCloudWatchEventRuleFunction(config.rule);
+  }).then(function (eventResult) {
+    var targetInput = config.rule.targetInput ? JSON.stringify(config.rule.targetInput) : null;
+    return _createCloudWatchTargetsFunction({ Rule: config.rule.name, Targets: [{ Id: config.functionName + '-' + config.rule.name, Arn: functionArn, Input: targetInput }] });
+  }).catch(function (err) {
+    logger('Error: ' + JSON.stringify(err));
+    throw true;
+  }).asCallback(callback);
+}
+
+/**
+ * creates a rule
+ * @param {object} config should include the rule property that is an object of: {name, scheduleExpression, isEnabled, role, targetInput} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
+ * @param {function} callback
+ */
+function createCloudWatchEventRule(config, callback) {
+  return _createCloudWatchEventRuleFunction(config).catch(function (err) {
+    logger('Error: ' + JSON.stringify(err));
+    throw true;
+  }).asCallback(callback);
+}
+
+/**
+ * sets up a target, which creates the binding of a arn to a cloud watch event rule
+ * @param {object} config {Rule, Targets} Rule is string (name of the rule, Targets is an array of {Arn *required*, Id *required*, Input, InputPath}. Arn of source linked to target, Id is a unique name for the target, Input the json
+ * @param {function} callback
+ */
+function createCloudWatchTargets(config, callback) {
+  return _createCloudWatchTargetsFunction(config).catch(function (err) {
+    logger('Error: ' + JSON.stringify(err));
+    throw true;
+  }).asCallback(callback);
+}
+
+var _deployLambdaFunction = function _deployLambdaFunction(codePackage, config, logger, lambdaClient) {
   var functionArn = '';
   if (!logger) {
     logger = console.log;
@@ -62,8 +122,8 @@ function deployLambda(codePackage, config, logger, lambdaClient, callback) {
     Description: config.description,
     Handler: config.handler,
     Role: config.role,
-    Timeout: config.timeout,
-    MemorySize: config.memorySize,
+    Timeout: config.timeout || 10,
+    MemorySize: config.memorySize || 128,
     Runtime: config.runtime || LAMBDA_RUNTIME
   };
 
@@ -111,12 +171,72 @@ function deployLambda(codePackage, config, logger, lambdaClient, callback) {
   }).catch(function (err) {
     logger('Error: ' + JSON.stringify(err));
     throw true;
-  }).asCallback(callback);
-}
+  });
+};
+
+/**
+ * Creates or Updates rules, this means you can disable or enable the state of this
+ * @param {object} config {name, scheduleExpression, isEnabled, role} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
+ * @returns {Promise<object>|Promise<Error>}
+ * @private
+ */
+var _createCloudWatchEventRuleFunction = function _createCloudWatchEventRuleFunction(config) {
+  /* params
+   {Name: 'STRING_VALUE', // required!//
+    Description: 'STRING_VALUE',
+    EventPattern: 'STRING_VALUE',
+    RoleArn: 'STRING_VALUE',
+    ScheduleExpression: 'STRING_VALUE',
+    State: 'ENABLED | DISABLED' }
+  */
+
+  var params = {
+    Name: config.name,
+    ScheduleExpression: config.scheduleExpression,
+    RoleArn: config.role,
+    State: config.isEnabled ? 'ENABLED' : 'DISABLED'
+  };
+
+  var cloudWatchEvents = new AWS.CloudWatchEvents({
+    region: config.region,
+    accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
+    secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
+  });
+
+  return new Bluebird(function (resolve, reject) {
+    cloudWatchEvents.putRule(params, function (err, data) {
+      if (err) {
+        return reject(err);
+      }
+
+      return resolve(data);
+    });
+  });
+};
+
+var _createCloudWatchTargetsFunction = function _createCloudWatchTargetsFunction(config) {
+  var cloudWatchEvents = new AWS.CloudWatchEvents({
+    region: config.region,
+    accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
+    secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
+  });
+
+  //targets[{Id, Arn, Input}] Input is the JSON text sent to target
+  return new Bluebird(function (resolve, reject) {
+    cloudWatchEvents.putTargets(params, function (err, data) {
+      if (err) {
+        return reject(err);
+      }
+
+      return resolve(data);
+    });
+  });
+};
 
 /**
  *
  * @param lambdaClient
+ * @param logger
  * @param functionName
  * @returns {bluebird|exports|module.exports}
  * Resolved Object:
