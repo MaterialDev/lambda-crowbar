@@ -94,7 +94,7 @@ let _deployLambdaFunction = function(codePackage, config, logger, lambdaClient){
     }
 
     lambdaClient = new AWS.Lambda({
-      region: config.region,
+      region: 'region' in config ? config.region : 'us-east-1',
       accessKeyId: "accessKeyId" in config ? config.accessKeyId : '',
       secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ''
     });
@@ -103,13 +103,13 @@ let _deployLambdaFunction = function(codePackage, config, logger, lambdaClient){
   }
 
   let snsClient = new AWS.SNS({
-    region: config.region,
+    region: 'region' in config ? config.region : 'us-east-1',
     accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
     secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
   });
 
   let cloudWatchLogsClient = new AWS.CloudWatchLogs({
-    region: config.region,
+    region: 'region' in config ? config.region : 'us-east-1',
     accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
     secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
   });
@@ -187,7 +187,7 @@ let _createCloudWatchEventRuleFunction = function (config) {
   };
 
   let cloudWatchEvents = new AWS.CloudWatchEvents({
-    region: config.region,
+    region: 'region' in config ? config.region : 'us-east-1',
     accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
     secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
   });
@@ -205,7 +205,7 @@ let _createCloudWatchEventRuleFunction = function (config) {
 
 let _createCloudWatchTargetsFunction = function(config) {
   let cloudWatchEvents = new AWS.CloudWatchEvents({
-    region: config.region,
+    region: 'region' in config ? config.region : 'us-east-1',
     accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
     secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
   });
