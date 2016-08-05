@@ -43,8 +43,8 @@ export function deployScheduleLambda(codePackage, config, logger, lambdaClient, 
         let targetInput = config.rule.targetInput ? JSON.stringify(config.rule.targetInput) : null;
         return _createCloudWatchTargetsFunction({Rule: config.rule.name, Targets: [{Id: `${config.functionName}-${config.rule.name}`, Arn: functionArn, Input: targetInput}]})
       }).catch((err) => {
-        logger(`Error: ${JSON.stringify(err)}`);
-        throw true;
+        console.error(`Error: ${JSON.stringify(err)}`);
+        throw err;
       }).asCallback(callback)
 }
 
@@ -56,8 +56,8 @@ export function deployScheduleLambda(codePackage, config, logger, lambdaClient, 
 export function createCloudWatchEventRule(config, callback){
   return _createCloudWatchEventRuleFunction(config)
       .catch((err) => {
-        logger(`Error: ${JSON.stringify(err)}`);
-        throw true;
+        console.error(`Error: ${JSON.stringify(err)}`);
+        throw err;
       }).asCallback(callback);
 }
 
@@ -69,7 +69,7 @@ export function createCloudWatchEventRule(config, callback){
 export function createCloudWatchTargets(config, callback){
   return _createCloudWatchTargetsFunction(config)
       .catch((err) => {
-        logger(`Error: ${JSON.stringify(err)}`);
+        console.error(`Error: ${JSON.stringify(err)}`);
         throw true;
       })
       .asCallback(callback)
@@ -99,7 +99,7 @@ let _deployLambdaFunction = function(codePackage, config, logger, lambdaClient){
       secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ''
     });
 
-    logger(`Access Key Id From Deployer: ${config.accessKeyId}`);
+    console.log(`Access Key Id From Deployer: ${config.accessKeyId}`);
   }
 
   let snsClient = new AWS.SNS({
@@ -138,8 +138,8 @@ let _deployLambdaFunction = function(codePackage, config, logger, lambdaClient){
                 return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
               })
               .catch((err) => {
-                logger(`Error: ${JSON.stringify(err)}`);
-                throw true;
+                console.error(`Error: ${JSON.stringify(err)}`);
+                throw err;
               });
         }else {
           let existingFunctionArn = getResult.functionArn;
@@ -152,14 +152,14 @@ let _deployLambdaFunction = function(codePackage, config, logger, lambdaClient){
                 return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
               })
               .catch((err) => {
-                logger(`Error: ${JSON.stringify(err)}`);
-                throw true;
+                console.error(`Error: ${JSON.stringify(err)}`);
+                throw err;
               });
         }
       })
       .catch((err) => {
-        logger(`Error: ${JSON.stringify(err)}`);
-        throw true;
+        console.error(`Error: ${JSON.stringify(err)}`);
+        throw err;
       });
 };
 
@@ -241,15 +241,15 @@ let _getLambdaFunction = function (lambdaClient, logger, functionName) {
 
     lambdaClient.getFunction(getFunctionParams, function (err, data) {
       if (err && err.statusCode !== 404) {
-        logger(`AWS API request failed. Check your AWS credentials and permissions. [Error: ${JSON.stringify(err)}]`);
+        console.log(`AWS API request failed. Check your AWS credentials and permissions. [Error: ${JSON.stringify(err)}]`);
         reject(err);
       }
       else if (err && err.statusCode === 404) {
-        logger(`Lambda not found. [LambdaName: ${functionName}]`);
+        console.log(`Lambda not found. [LambdaName: ${functionName}]`);
         resolve({lambdaExists: false});
       }
       else {
-        logger(`Lambda found! [LambdaName: ${functionName}]`);
+        console.log(`Lambda found! [LambdaName: ${functionName}]`);
         resolve({
           lambdaExists: true,
           functionArn: data.Configuration.FunctionArn
@@ -270,16 +270,16 @@ let _getLambdaFunction = function (lambdaClient, logger, functionName) {
  */
 let _createLambdaFunction = function (lambdaClient, logger, codePackage, params) {
   return new Bluebird((resolve, reject) => {
-    logger(`Creating LambdaFunction. [FunctionName: ${params.FunctionName}]`);
+    console.log(`Creating LambdaFunction. [FunctionName: ${params.FunctionName}]`);
     let data = fs.readFileSync(codePackage);
 
     params.Code = {ZipFile: data};
     lambdaClient.createFunction(params, function (err, data) {
       if (err) {
-        logger(`Create function failed. Check your iam:PassRole permissions. [Error: ${JSON.stringify(err)}]`);
+        console.erroor(`Create function failed. Check your iam:PassRole permissions. [Error: ${JSON.stringify(err)}]`);
         reject(err);
       } else {
-        logger(`Created Lambda successfully. [Data: ${JSON.stringify(data)}]`);
+        console.log(`Created Lambda successfully. [Data: ${JSON.stringify(data)}]`);
         resolve({functionArn: data.FunctionArn});
       }
     });
@@ -297,7 +297,7 @@ let _createLambdaFunction = function (lambdaClient, logger, codePackage, params)
  */
 let _updateLambdaFunction = function (lambdaClient, logger, codePackage, params) {
   return new Bluebird((resolve, reject) => {
-    logger(`Updating LambdaFunction. [FunctionName: ${params.FunctionName}]`);
+    console.log(`Updating LambdaFunction. [FunctionName: ${params.FunctionName}]`);
     let data = fs.readFileSync(codePackage);
 
     let updateFunctionParams = {
@@ -308,15 +308,15 @@ let _updateLambdaFunction = function (lambdaClient, logger, codePackage, params)
 
     lambdaClient.updateFunctionCode(updateFunctionParams, function (err, data) {
       if (err) {
-        logger(`UpdateFunction Error: ${JSON.stringify(err)}`);
+        console.lerror(`UpdateFunction Error: ${JSON.stringify(err)}`);
         reject(err);
       } else {
         lambdaClient.updateFunctionConfiguration(params, function (err, data) {
           if (err) {
-            logger(`UpdateFunctionConfiguration Error: ${JSON.stringify(err)}`);
+            console.error(`UpdateFunctionConfiguration Error: ${JSON.stringify(err)}`);
             reject(err);
           } else {
-            logger(`Successfully updated lambda. [FunctionName: ${params.FunctionName}] [Data: ${JSON.stringify(data)}]`);
+            console.log(`Successfully updated lambda. [FunctionName: ${params.FunctionName}] [Data: ${JSON.stringify(data)}]`);
             resolve();
           }
         });
@@ -351,12 +351,13 @@ let _updateEventSource = function (lambdaClient, config, logger) {
 
     lambdaClient.listEventSourceMappings(getEventSourceMappingsParams, function (err, data) {
       if (err) {
-        logger("List event source mapping failed, please make sure you have permission");
+        console.error("List event source mapping failed, please make sure you have permission");
+        console.error(`error: ${err}`);
         reject(err);
       } else if (data.EventSourceMappings.length === 0) {
         lambdaClient.createEventSourceMapping(localParams, function (err, data) {
           if (err) {
-            logger(`Failed to create event source mapping! Error: ${err}`);
+            console.error(`Failed to create event source mapping! Error: ${err}`);
             reject(err);
           } else {
             resolve();
@@ -373,7 +374,7 @@ let _updateEventSource = function (lambdaClient, config, logger) {
           lambdaClient.updateEventSourceMapping(updateEventSourceMappingParams, iteratorCallback);
         }, function (err) {
           if (err) {
-            logger(`Update event source mapping failed. ${err}`);
+            console.error(`Update event source mapping failed. ${err}`);
             reject(err);
           }
           else {
@@ -401,8 +402,8 @@ let _updatePushSource = function (lambdaClient, snsClient, config, logger, funct
   }
 
   return Bluebird.each(config.pushSource, (currentTopic, currentIndex, length) => {
-    logger(`Executing Topic ${currentIndex} of ${length}`);
-    logger(`Current Topic: ${JSON.stringify(currentTopic)}`);
+    console.log(`Executing Topic ${currentIndex} of ${length}`);
+    console.log(`Current Topic: ${JSON.stringify(currentTopic)}`);
     let currentTopicNameArn = currentTopic.TopicArn;
     let currentTopicStatementId = currentTopic.StatementId;
     let topicName = currentTopic.TopicArn.split(':').pop();
@@ -410,8 +411,8 @@ let _updatePushSource = function (lambdaClient, snsClient, config, logger, funct
     return _createTopicIfNotExists(snsClient, topicName)
       .then(() => _subscribeLambdaToTopic(lambdaClient, snsClient, logger, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId))
       .catch((err) => {
-        logger(`Error: ${JSON.stringify(err)}`);
-        throw true;
+        console.error(`Error: ${JSON.stringify(err)}`);
+        throw err;
       });
   });
 };
@@ -429,7 +430,7 @@ let _createTopicIfNotExists = function (snsClient, topicName) {
 
     snsClient.listTopics(listTopicParams, function (err, data) {
       if (err) {
-        logger(`Failed to list to topic. Error: ${JSON.stringify(err)}`);
+        console.error(`Failed to list to topic. Error: ${JSON.stringify(err)}`);
         reject(err);
       }
       else {
@@ -443,7 +444,7 @@ let _createTopicIfNotExists = function (snsClient, topicName) {
 
           snsClient.createTopic(createParams, function (err, data) {
             if (err) {
-              logger(`Failed to create to topic. Error ${JSON.stringify(err)}`);
+              console.error(`Failed to create to topic. Error ${JSON.stringify(err)}`);
               reject(err);
             }
             else {
@@ -480,7 +481,7 @@ let _subscribeLambdaToTopic = function (lambdaClient, snsClient, logger, config,
 
     snsClient.subscribe(subParams, function (err, data) {
       if (err) {
-        logger(`Failed to subscribe to topic. [Topic Name: ${topicName}] [TopicArn: ${subParams.TopicArn}] [Error: ${JSON.stringify(err)}]`);
+        console.error(`Failed to subscribe to topic. [Topic Name: ${topicName}] [TopicArn: ${subParams.TopicArn}] [Error: ${JSON.stringify(err)}]`);
         reject(err);
       }
       else {
@@ -490,13 +491,13 @@ let _subscribeLambdaToTopic = function (lambdaClient, snsClient, logger, config,
         };
         lambdaClient.removePermission(removePermissionParams, function (err, data) {
           if (err && err.StatusCode === 404) {
-            logger(`Permission does not exist. [Error: ${JSON.stringify(err)}]`);
+            console.error(`Permission does not exist. [Error: ${JSON.stringify(err)}]`);
           }
           else if (err && err.statusCode !== 404) {
-            logger(`Unable to delete permission. [Error: ${JSON.stringify(err)}]`);
+            console.error(`Unable to delete permission. [Error: ${JSON.stringify(err)}]`);
           }
           else {
-            logger(`Permission deleted successfully! [Data: ${JSON.stringify(data)}]`);
+            console.log(`Permission deleted successfully! [Data: ${JSON.stringify(data)}]`);
           }
 
           let permissionParams = {
@@ -508,11 +509,11 @@ let _subscribeLambdaToTopic = function (lambdaClient, snsClient, logger, config,
           };
           lambdaClient.addPermission(permissionParams, function (err, data) {
             if (err) {
-              logger(`Failed to add permission. [Error: ${JSON.stringify(err)}]`);
+              console.error(`Failed to add permission. [Error: ${JSON.stringify(err)}]`);
               reject(err);
             }
             else {
-              logger(`Succeeded in adding permission. [Data: ${JSON.stringify(data)}]`);
+              console.log(`Succeeded in adding permission. [Data: ${JSON.stringify(data)}]`);
               resolve();
             }
           });
@@ -563,10 +564,10 @@ let _publishVersion = function (lambdaClient, logger, config) {
 
     lambdaClient.publishVersion(publishVersionParams, function (err, data) {
       if (err) {
-        logger(`Error Publishing Version. [Error: ${JSON.stringify(err)}]`);
+        console.error(`Error Publishing Version. [Error: ${JSON.stringify(err)}]`);
         reject(err);
       } else {
-        logger(`Successfully published version. [Data: ${JSON.stringify(data)}]`);
+        console.log(`Successfully published version. [Data: ${JSON.stringify(data)}]`);
         resolve(data);
       }
     });
@@ -586,7 +587,7 @@ let _listVersionsByFunction = function (lambdaClient, logger, config) {
     let listVersionsParams = {FunctionName: config.functionName};
     lambdaClient.listVersionsByFunction(listVersionsParams, function (listErr, data) {
       if (listErr) {
-        logger(`Error Listing Versions for Lambda Function. [Error: ${JSON.stringify(listErr)}]`);
+        console.error(`Error Listing Versions for Lambda Function. [Error: ${JSON.stringify(listErr)}]`);
         reject(listErr);
       } else {
         resolve(data);
@@ -614,10 +615,10 @@ let _deleteLambdaFunctionVersion = function (lambdaClient, logger, config, versi
 
     lambdaClient.deleteFunction(deleteFunctionParams, function (err, data) {
       if (err) {
-        logger(`Failed to delete lambda version. [FunctionName: ${config.functionName}] [Version: ${version}]`);
+        console.error(`Failed to delete lambda version. [FunctionName: ${config.functionName}] [Version: ${version}]`);
       }
       else {
-        logger(`Successfully deleted lambda version. [FunctionName: ${config.functionName}] [Version: ${version}]`);
+        console.log(`Successfully deleted lambda version. [FunctionName: ${config.functionName}] [Version: ${version}]`);
       }
       resolve();
     });
@@ -642,9 +643,9 @@ let _attachLogging = function (lambdaClient, cloudWatchLogsClient, logger, confi
     .then(() => _updateCloudWatchLogsSubscription(cloudWatchLogsClient, logger, config, params))
     .catch(err => {
       let parsedStatusCode = __.get(err, 'statusCode', '');
-      logger(`Error occurred in _attachLogging. [StatusCode: ${parsedStatusCode}]`);
+      console.error(`Error occurred in _attachLogging. [StatusCode: ${parsedStatusCode}]`);
       if(parsedStatusCode !== 429 && err.statusCode !== '429') {
-        logger(`Recieved a non-retry throttle error`);
+        console.error(`Received a non-retry throttle error`);
         throw new retry.StopError(`Recieved non-retry throttle error.  [Error: ${JSON.stringify(err)}]`);
       }
     });
@@ -670,15 +671,15 @@ let _addLoggingLambdaPermissionToLambda = function (lambdaClient, logger, config
     lambdaClient.addPermission(permissionParams, (err, data) => {
       if (err) {
         if (err.message.match(/The statement id \(.*?\) provided already exists. Please provide a new statement id, or remove the existing statement./i)) {
-          logger(`Lambda function already contains loggingIndex [Function: ${permissionParams.FunctionName}] [Permission StatementId: ${permissionParams.StatementId}]`);
+          console.log(`Lambda function already contains loggingIndex [Function: ${permissionParams.FunctionName}] [Permission StatementId: ${permissionParams.StatementId}]`);
           resolve();
         } else {
-          logger(`Error Adding Logging Permission to Lambda. [Error: ${JSON.stringify(err)}]`, err.stack);
+          console.error(`Error Adding Logging Permission to Lambda. [Error: ${JSON.stringify(err)}]`, err.stack);
           reject(err);
         }
       }
       else {
-        logger(data);
+        console.log(JSON.stringify(data, null, 2));
         resolve();
       }
     });
@@ -702,25 +703,25 @@ let _updateCloudWatchLogsSubscription = function (cloudWatchLogsClient, logger, 
       filterPattern: '',
       logGroupName: `/aws/lambda/${params.FunctionName}`
     };
-    logger(`Function Name: ${params.FunctionName}`);
-    logger(`Filter Name: ${cloudWatchParams.filterName}`);
-    logger(`Log Group Name: ${cloudWatchParams.logGroupName}`);
+    console.log(`Function Name: ${params.FunctionName}`);
+    console.log(`Filter Name: ${cloudWatchParams.filterName}`);
+    console.log(`Log Group Name: ${cloudWatchParams.logGroupName}`);
     cloudWatchLogsClient.putSubscriptionFilter(cloudWatchParams, (err, data) => {
       if (err) {
         if (err.message.match(/The specified log group does not exist./i)) {
           //this error shouldn't stop the deploy since its due to the lambda having never been executed in order to create the log group in Cloud Watch Logs,
           // so we are going to ignore this error
           // ..we should recover from this by creating the log group or it will be resolved on next execution after the lambda has been run once
-          logger(`Failed to add subscription filter to lambda due it log group not existing.  [LogGroupName: ${cloudWatchParams.logGroupName}][FilterName: ${cloudWatchParams.filterName}]`);
+          console.error(`Failed to add subscription filter to lambda due it log group not existing.  [LogGroupName: ${cloudWatchParams.logGroupName}][FilterName: ${cloudWatchParams.filterName}]`);
           resolve();
         }
         else {
-          logger(`Failed To Add Mapping For Logger. [Error: ${JSON.stringify(err)}]`);
+          console.error(`Failed To Add Mapping For Logger. [Error: ${JSON.stringify(err)}]`);
           reject(err);
         }
       }
       else {
-        logger(`Successfully added subscription Filter. [LogGroupName: ${cloudWatchParams.logGroupName}][FilterName: ${cloudWatchParams.filterName}] [Response: ${JSON.stringify(data)}]`);
+        console.log(`Successfully added subscription Filter. [LogGroupName: ${cloudWatchParams.logGroupName}][FilterName: ${cloudWatchParams.filterName}] [Response: ${JSON.stringify(data)}]`);
         resolve();
       }
     });
