@@ -13,23 +13,21 @@ const nodeAwsLambda = () => {
   return this;
 };
 
-function deployLambda(codePackage, config, lambdaClient, callback) {
-  return deployLambdaFunction(codePackage, config, lambdaClient)
-    .asCallback(callback);
-}
+nodeAwsLambda.prototype.deploy = (codePackage, config, lambdaClient) => {
+  return deployLambdaFunction(codePackage, config, lambdaClient);
+};
 
 /**
  * deploys a lambda, creates a rule, and then binds the lambda to the rule by creating a target
  * @param {file} codePackage a zip of the collection
  * @param {object} config note: should include the rule property that is an object of: {name, scheduleExpression, isEnabled, role, targetInput} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
  * @param lambdaClient
- * @param {function} callback the arguments are error and data
  *
  */
-function deployScheduleLambda(codePackage, config, lambdaClient, callback) {
+function deployScheduleLambda(codePackage, config, lambdaClient) {
   let functionArn = '';
 
-  return deployLambdaFunction(codePackage, config, lambdaClient, callback)
+  return deployLambdaFunction(codePackage, config, lambdaClient)
       .then(result => {
         functionArn = result.functionArn;
 
@@ -48,34 +46,31 @@ function deployScheduleLambda(codePackage, config, lambdaClient, callback) {
       }).catch((err) => {
         console.error(`Error: ${JSON.stringify(err)}`);
         throw err;
-      }).asCallback(callback)
+      });
 }
 
 /**
  * creates a rule
  * @param {object} config should include the rule property that is an object of: {name, scheduleExpression, isEnabled, role, targetInput} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
- * @param {function} callback
  */
-function createCloudWatchEventRule(config, callback){
+function createCloudWatchEventRule(config){
   return createCloudWatchEventRuleFunction(config)
       .catch((err) => {
         console.error(`Error: ${JSON.stringify(err)}`);
         throw err;
-      }).asCallback(callback);
+      });
 }
 
 /**
  * sets up a target, which creates the binding of a arn to a cloud watch event rule
  * @param {object} config {Rule, Targets} Rule is string (name of the rule, Targets is an array of {Arn *required*, Id *required*, Input, InputPath}. Arn of source linked to target, Id is a unique name for the target, Input the json
- * @param {function} callback
  */
-function createCloudWatchTargets(config, callback){
+function createCloudWatchTargets(config){
   return createCloudWatchTargetsFunction(config)
       .catch((err) => {
         console.error(`Error: ${JSON.stringify(err)}`);
         throw true;
-      })
-      .asCallback(callback)
+      });
 }
 
 let deployLambdaFunction = function(codePackage, config, lambdaClient){
