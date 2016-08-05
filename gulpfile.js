@@ -1,6 +1,5 @@
 const gulp = require('gulp');
 const mocha = require('gulp-mocha');
-const packageJson = require('./package.json');
 const eslint = require('gulp-eslint');
 const sourcemaps = require('gulp-sourcemaps');
 const babel = require('gulp-babel');
@@ -20,16 +19,18 @@ gulp.task('build:lint', () => {
 });
 
 gulp.task('build:babel', (callback) => {
-  gulp.src(['src/**/*.js'], {base: "./src"})
+  gulp.src(['src/**/*.js'], {base: './src'})
     .pipe(sourcemaps.init())
-    .pipe(babel({presets:['es2015']}))
-    .pipe(sourcemaps.write("."))
+    .pipe(babel({presets: ['es2015']}))
+    .pipe(sourcemaps.write('.'))
     .pipe(gulp.dest('build'))
-    .on('end', () => {callback()});
+    .on('end', () => {
+      callback();
+    });
 });
 
 gulp.task('npmrc', () => {
-  let npmKey = process.env.NPM_KEY;
-  require('fs').writeFileSync('.npmrc', npmKey);
+  const npmKey = process.env.NPM_KEY;
+  require('fs').writeFileSync('.npmrc', npmKey); //eslint-disable-line global-require
   console.log(npmKey);
 });
