@@ -1,16 +1,20 @@
-let fs = require('fs');
-let AWS = require('aws-sdk');
-let extend = require('util')._extend;
-let async = require('async');
-let HttpsProxyAgent = require('https-proxy-agent');
-let Bluebird = require('bluebird');
-let retry = require('bluebird-retry');
-let __ = require('lodash');
+const fs = require('fs');
+const AWS = require('aws-sdk');
+const extend = require('util')._extend;
+const async = require('async');
+const HttpsProxyAgent = require('https-proxy-agent');
+const Bluebird = require('bluebird');
+const retry = require('bluebird-retry');
+const lodash = require('lodash');
 
 const LAMBDA_RUNTIME = 'nodejs4.3';
 
-export function deployLambda(codePackage, config, logger, lambdaClient, callback) {
-  return _deployLambdaFunction(codePackage, config, logger, lambdaClient)
+const nodeAwsLambda = () => {
+  return this;
+};
+
+function deployLambda(codePackage, config, lambdaClient, callback) {
+  return deployLambdaFunction(codePackage, config, lambdaClient)
     .asCallback(callback);
 }
 
@@ -18,15 +22,14 @@ export function deployLambda(codePackage, config, logger, lambdaClient, callback
  * deploys a lambda, creates a rule, and then binds the lambda to the rule by creating a target
  * @param {file} codePackage a zip of the collection
  * @param {object} config note: should include the rule property that is an object of: {name, scheduleExpression, isEnabled, role, targetInput} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
- * @param logger
  * @param lambdaClient
  * @param {function} callback the arguments are error and data
  *
  */
-export function deployScheduleLambda(codePackage, config, logger, lambdaClient, callback) {
+function deployScheduleLambda(codePackage, config, lambdaClient, callback) {
   let functionArn = '';
 
-  return _deployLambdaFunction(codePackage, config, logger, lambdaClient, callback)
+  return deployLambdaFunction(codePackage, config, lambdaClient, callback)
       .then(result => {
         functionArn = result.functionArn;
 
@@ -38,10 +41,10 @@ export function deployScheduleLambda(codePackage, config, logger, lambdaClient, 
           throw new Error('rule is required. Please include a property called rule that is an object which has the following: {name, scheduleExpression, isEnabled, role}');
         }
 
-       return _createCloudWatchEventRuleFunction(config.rule);
+       return createCloudWatchEventRuleFunction(config.rule);
       }).then(eventResult => {
         let targetInput = config.rule.targetInput ? JSON.stringify(config.rule.targetInput) : null;
-        return _createCloudWatchTargetsFunction({Rule: config.rule.name, Targets: [{Id: `${config.functionName}-${config.rule.name}`, Arn: functionArn, Input: targetInput}]})
+        return createCloudWatchTargetsFunction({Rule: config.rule.name, Targets: [{Id: `${config.functionName}-${config.rule.name}`, Arn: functionArn, Input: targetInput}]})
       }).catch((err) => {
         console.error(`Error: ${JSON.stringify(err)}`);
         throw err;
@@ -53,8 +56,8 @@ export function deployScheduleLambda(codePackage, config, logger, lambdaClient, 
  * @param {object} config should include the rule property that is an object of: {name, scheduleExpression, isEnabled, role, targetInput} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
  * @param {function} callback
  */
-export function createCloudWatchEventRule(config, callback){
-  return _createCloudWatchEventRuleFunction(config)
+function createCloudWatchEventRule(config, callback){
+  return createCloudWatchEventRuleFunction(config)
       .catch((err) => {
         console.error(`Error: ${JSON.stringify(err)}`);
         throw err;
@@ -66,8 +69,8 @@ export function createCloudWatchEventRule(config, callback){
  * @param {object} config {Rule, Targets} Rule is string (name of the rule, Targets is an array of {Arn *required*, Id *required*, Input, InputPath}. Arn of source linked to target, Id is a unique name for the target, Input the json
  * @param {function} callback
  */
-export function createCloudWatchTargets(config, callback){
-  return _createCloudWatchTargetsFunction(config)
+function createCloudWatchTargets(config, callback){
+  return createCloudWatchTargetsFunction(config)
       .catch((err) => {
         console.error(`Error: ${JSON.stringify(err)}`);
         throw true;
@@ -75,11 +78,8 @@ export function createCloudWatchTargets(config, callback){
       .asCallback(callback)
 }
 
-let _deployLambdaFunction = function(codePackage, config, logger, lambdaClient){
+let deployLambdaFunction = function(codePackage, config, lambdaClient){
   let functionArn = '';
-  if (!logger) {
-    logger = console.log;
-  }
   if (!lambdaClient) {
     if ("profile" in config) {
       AWS.config.credentials = new AWS.SharedIniFileCredentials({profile: config.profile});
@@ -124,17 +124,17 @@ let _deployLambdaFunction = function(codePackage, config, logger, lambdaClient){
     Runtime: config.runtime || LAMBDA_RUNTIME
   };
 
-  return _getLambdaFunction(lambdaClient, logger, params.FunctionName)
+  return getLambdaFunction(lambdaClient, params.FunctionName)
       .then((getResult) => {
         if (!getResult.lambdaExists) {
-          return _createLambdaFunction(lambdaClient, logger, codePackage, params)
+          return createLambdaFunction(lambdaClient, codePackage, params)
               .then((createFunctionResult) => {
                 functionArn = createFunctionResult.functionArn;
               })
-              .then(() => _updateEventSource(lambdaClient, config, logger))
-              .then(() => _updatePushSource(lambdaClient, snsClient, config, logger, functionArn))
+              .then(() => updateEventSource(lambdaClient, config))
+              .then(() => updatePushSource(lambdaClient, snsClient, config, functionArn))
               .then(() => {
-                let localAttachLoggingFunction = () => {return _attachLogging(lambdaClient, cloudWatchLogsClient, logger, config, params)};
+                let localAttachLoggingFunction = () => {return attachLogging(lambdaClient, cloudWatchLogsClient, config, params)};
                 return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
               })
               .catch((err) => {
@@ -143,12 +143,12 @@ let _deployLambdaFunction = function(codePackage, config, logger, lambdaClient){
               });
         }else {
           let existingFunctionArn = getResult.functionArn;
-          return _updateLambdaFunction(lambdaClient, logger, codePackage, params)
-              .then(() => _updateEventSource(lambdaClient, config, logger))
-              .then(() => _updatePushSource(lambdaClient, snsClient, config, logger, existingFunctionArn))
-              .then(() => _publishLambdaVersion(lambdaClient, logger, config))
+          return updateLambdaFunction(lambdaClient, codePackage, params)
+              .then(() => updateEventSource(lambdaClient, config))
+              .then(() => updatePushSource(lambdaClient, snsClient, config, existingFunctionArn))
+              .then(() => publishLambdaVersion(lambdaClient, config))
               .then(() => {
-                let localAttachLoggingFunction = () => {return _attachLogging(lambdaClient, cloudWatchLogsClient, logger, config, params)};
+                let localAttachLoggingFunction = () => {return attachLogging(lambdaClient, cloudWatchLogsClient, config, params)};
                 return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
               })
               .catch((err) => {
@@ -169,7 +169,7 @@ let _deployLambdaFunction = function(codePackage, config, logger, lambdaClient){
  * @returns {Promise<object>|Promise<Error>}
  * @private
  */
-let _createCloudWatchEventRuleFunction = function (config) {
+const createCloudWatchEventRuleFunction = function (config) {
   /* params
    {Name: 'STRING_VALUE', // required!//
     Description: 'STRING_VALUE',
@@ -203,7 +203,7 @@ let _createCloudWatchEventRuleFunction = function (config) {
   });
 };
 
-let _createCloudWatchTargetsFunction = function(config) {
+const createCloudWatchTargetsFunction = function(config) {
   let cloudWatchEvents = new AWS.CloudWatchEvents({
     region: 'region' in config ? config.region : 'us-east-1',
     accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
@@ -225,7 +225,6 @@ let _createCloudWatchTargetsFunction = function(config) {
 /**
  *
  * @param lambdaClient
- * @param logger
  * @param functionName
  * @returns {bluebird|exports|module.exports}
  * Resolved Object:
@@ -233,7 +232,7 @@ let _createCloudWatchTargetsFunction = function(config) {
  * functionArn - this is a string that contains arn to the lambda function
  * @private
  */
-let _getLambdaFunction = function (lambdaClient, logger, functionName) {
+const getLambdaFunction = function (lambdaClient, functionName) {
   return new Bluebird((resolve, reject) => {
     let getFunctionParams = {
       FunctionName: functionName
@@ -262,13 +261,12 @@ let _getLambdaFunction = function (lambdaClient, logger, functionName) {
 /**
  *
  * @param lambdaClient
- * @param logger
  * @param codePackage
  * @param params
  * @returns {bluebird|exports|module.exports}
  * @private
  */
-let _createLambdaFunction = function (lambdaClient, logger, codePackage, params) {
+const createLambdaFunction = function (lambdaClient, codePackage, params) {
   return new Bluebird((resolve, reject) => {
     console.log(`Creating LambdaFunction. [FunctionName: ${params.FunctionName}]`);
     let data = fs.readFileSync(codePackage);
@@ -289,13 +287,12 @@ let _createLambdaFunction = function (lambdaClient, logger, codePackage, params)
 /**
  *
  * @param lambdaClient
- * @param logger
  * @param codePackage
  * @param params
  * @returns {bluebird|exports|module.exports}
  * @private
  */
-let _updateLambdaFunction = function (lambdaClient, logger, codePackage, params) {
+const updateLambdaFunction = function (lambdaClient, codePackage, params) {
   return new Bluebird((resolve, reject) => {
     console.log(`Updating LambdaFunction. [FunctionName: ${params.FunctionName}]`);
     let data = fs.readFileSync(codePackage);
@@ -329,11 +326,10 @@ let _updateLambdaFunction = function (lambdaClient, logger, codePackage, params)
  *
  * @param lambdaClient
  * @param config
- * @param logger
  * @returns {bluebird|exports|module.exports}
  * @private
  */
-let _updateEventSource = function (lambdaClient, config, logger) {
+const updateEventSource = function (lambdaClient, config) {
   return new Bluebird((resolve, reject) => {
     if (!config.eventSource) {
       resolve();
@@ -391,12 +387,11 @@ let _updateEventSource = function (lambdaClient, config, logger) {
  * @param lambdaClient
  * @param snsClient
  * @param config
- * @param logger
  * @param functionArn
  * @returns {bluebird|exports|module.exports}
  * @private
  */
-let _updatePushSource = function (lambdaClient, snsClient, config, logger, functionArn) {
+const updatePushSource = function (lambdaClient, snsClient, config, functionArn) {
   if (!config.pushSource) {
     return Bluebird.resolve(true);
   }
@@ -408,8 +403,8 @@ let _updatePushSource = function (lambdaClient, snsClient, config, logger, funct
     let currentTopicStatementId = currentTopic.StatementId;
     let topicName = currentTopic.TopicArn.split(':').pop();
 
-    return _createTopicIfNotExists(snsClient, topicName)
-      .then(() => _subscribeLambdaToTopic(lambdaClient, snsClient, logger, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId))
+    return createTopicIfNotExists(snsClient, topicName)
+      .then(() => subscribeLambdaToTopic(lambdaClient, snsClient, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId))
       .catch((err) => {
         console.error(`Error: ${JSON.stringify(err)}`);
         throw err;
@@ -424,7 +419,7 @@ let _updatePushSource = function (lambdaClient, snsClient, config, logger, funct
  * @returns {bluebird|exports|module.exports}
  * @private
  */
-let _createTopicIfNotExists = function (snsClient, topicName) {
+const createTopicIfNotExists = function (snsClient, topicName) {
   return new Bluebird((resolve, reject) => {
     var listTopicParams = {};
 
@@ -434,8 +429,8 @@ let _createTopicIfNotExists = function (snsClient, topicName) {
         reject(err);
       }
       else {
-        let foundTopic = __.find(data.Topics, (o) => o.TopicArn === topicName);
-        if (!__.isUndefined(foundTopic)) {
+        let foundTopic = lodash.find(data.Topics, (o) => o.TopicArn === topicName);
+        if (!lodash.isUndefined(foundTopic)) {
           resolve();
         } else {
           let createParams = {
@@ -461,7 +456,6 @@ let _createTopicIfNotExists = function (snsClient, topicName) {
  *
  * @param lambdaClient
  * @param snsClient
- * @param logger
  * @param config
  * @param functionArn
  * @param topicName
@@ -470,7 +464,7 @@ let _createTopicIfNotExists = function (snsClient, topicName) {
  * @returns {bluebird|exports|module.exports}
  * @private
  */
-let _subscribeLambdaToTopic = function (lambdaClient, snsClient, logger, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId) {
+const subscribeLambdaToTopic = function (lambdaClient, snsClient, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId) {
   return new Bluebird((resolve, reject) => {
 
     let subParams = {
@@ -523,17 +517,9 @@ let _subscribeLambdaToTopic = function (lambdaClient, snsClient, logger, config,
   });
 };
 
-/**
- *
- * @param lambdaClient
- * @param logger
- * @param config
- * @returns {bluebird|exports|module.exports}
- * @private
- */
-let _publishLambdaVersion = function (lambdaClient, logger, config) {
-  return _publishVersion(lambdaClient, logger, config)
-    .then(() => _listVersionsByFunction(lambdaClient, logger, config))
+const publishLambdaVersion = function (lambdaClient, config) {
+  return publishVersion(lambdaClient, config)
+    .then(() => listVersionsByFunction(lambdaClient, config))
     .then((listVersionsResult) => {
 
       let versionsToDelete = [];
@@ -541,7 +527,7 @@ let _publishLambdaVersion = function (lambdaClient, logger, config) {
       for (let index = 0; index < listVersionsResult.Versions.length; ++index) {
         let version = listVersionsResult.Versions[index].Version;
         if (version !== "$LATEST" && version !== last) {
-          versionsToDelete.push(_deleteLambdaFunctionVersion(lambdaClient, logger, config, version));
+          versionsToDelete.push(deleteLambdaFunctionVersion(lambdaClient, config, version));
         }
       }
 
@@ -550,15 +536,7 @@ let _publishLambdaVersion = function (lambdaClient, logger, config) {
     });
 };
 
-/**
- *
- * @param lambdaClient
- * @param logger
- * @param config
- * @returns {Promise}
- * @private
- */
-let _publishVersion = function (lambdaClient, logger, config) {
+const publishVersion = function (lambdaClient, config) {
   return new Bluebird((resolve, reject) => {
     let publishVersionParams = {FunctionName: config.functionName};
 
@@ -574,15 +552,7 @@ let _publishVersion = function (lambdaClient, logger, config) {
   });
 };
 
-/**
- *
- * @param lambdaClient
- * @param logger
- * @param config
- * @returns {bluebird|exports|module.exports}
- * @private
- */
-let _listVersionsByFunction = function (lambdaClient, logger, config) {
+const listVersionsByFunction = function (lambdaClient, config) {
   return new Bluebird((resolve, reject) => {
     let listVersionsParams = {FunctionName: config.functionName};
     lambdaClient.listVersionsByFunction(listVersionsParams, function (listErr, data) {
@@ -596,16 +566,7 @@ let _listVersionsByFunction = function (lambdaClient, logger, config) {
   });
 };
 
-/**
- *
- * @param lambdaClient
- * @param logger
- * @param config
- * @param version
- * @returns {bluebird|exports|module.exports}
- * @private
- */
-let _deleteLambdaFunctionVersion = function (lambdaClient, logger, config, version) {
+const deleteLambdaFunctionVersion = function (lambdaClient, config, version) {
   return new Bluebird((resolve) => {
 
     let deleteFunctionParams = {
@@ -625,24 +586,14 @@ let _deleteLambdaFunctionVersion = function (lambdaClient, logger, config, versi
   });
 };
 
-/**
- *
- * @param lambdaClient
- * @param cloudWatchLogsClient
- * @param logger
- * @param config
- * @param params
- * @returns {*}
- * @private
- */
-let _attachLogging = function (lambdaClient, cloudWatchLogsClient, logger, config, params) {
+const attachLogging = function (lambdaClient, cloudWatchLogsClient, config, params) {
   if (!config.logging) {
     return Promise.resolve('no logging to attach');
   }
-  return _addLoggingLambdaPermissionToLambda(lambdaClient, logger, config)
-    .then(() => _updateCloudWatchLogsSubscription(cloudWatchLogsClient, logger, config, params))
+  return addLoggingLambdaPermissionToLambda(lambdaClient, config)
+    .then(() => updateCloudWatchLogsSubscription(cloudWatchLogsClient, config, params))
     .catch(err => {
-      let parsedStatusCode = __.get(err, 'statusCode', '');
+      let parsedStatusCode = lodash.get(err, 'statusCode', '');
       console.error(`Error occurred in _attachLogging. [StatusCode: ${parsedStatusCode}]`);
       if(parsedStatusCode !== 429 && err.statusCode !== '429') {
         console.error(`Received a non-retry throttle error`);
@@ -651,15 +602,7 @@ let _attachLogging = function (lambdaClient, cloudWatchLogsClient, logger, confi
     });
 };
 
-/**
- *
- * @param lambdaClient
- * @param logger
- * @param config
- * @returns {bluebird|exports|module.exports}
- * @private
- */
-let _addLoggingLambdaPermissionToLambda = function (lambdaClient, logger, config) {
+const addLoggingLambdaPermissionToLambda = function (lambdaClient, config) {
   return new Bluebird((resolve, reject) => {
     // Need to add the permission once, but if it fails the second time no worries.
     let permissionParams = {
@@ -686,16 +629,7 @@ let _addLoggingLambdaPermissionToLambda = function (lambdaClient, logger, config
   });
 };
 
-/**
- *
- * @param cloudWatchLogsClient
- * @param logger
- * @param config
- * @param params
- * @returns {bluebird|exports|module.exports}
- * @private
- */
-let _updateCloudWatchLogsSubscription = function (cloudWatchLogsClient, logger, config, params) {
+const updateCloudWatchLogsSubscription = function (cloudWatchLogsClient, config, params) {
   return new Bluebird((resolve, reject) => {
     let cloudWatchParams = {
       destinationArn: config.logging.Arn, /* required */
@@ -727,3 +661,5 @@ let _updateCloudWatchLogsSubscription = function (cloudWatchLogsClient, logger, 
     });
   });
 };
+
+module.exports = nodeAwsLambda;
