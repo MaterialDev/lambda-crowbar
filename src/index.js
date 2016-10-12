@@ -101,7 +101,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
   const snsClient = new AWS.SNS({
     region: 'region' in config ? config.region : 'us-east-1',
     accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
-    secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
+    secretAccessKey: 'secretAccessKey' in config ? config.srcretAccessKey : ''
   });
 
   const cloudWatchLogsClient = new AWS.CloudWatchLogs({
@@ -273,7 +273,7 @@ const createLambdaFunction = (lambdaClient, codePackage, params) => {
     localParams.Code = {ZipFile: zipFileContents};
     lambdaClient.createFunction(localParams, (err, data) => {
       if (err) {
-        console.erroor(`Create function failed. Check your iam:PassRole permissions. [Error: ${JSON.stringify(err)}]`);
+        console.error(`Create function failed. Check your iam:PassRole permissions. [Error: ${JSON.stringify(err)}]`);
         reject(err);
       }
       else {
