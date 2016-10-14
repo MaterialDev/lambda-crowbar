@@ -4,8 +4,9 @@ const extend = require('util')._extend; //eslint-disable-line no-underscore-dang
 const async = require('async');
 const HttpsProxyAgent = require('https-proxy-agent');
 const Bluebird = require('bluebird');
-const retry = require('bluebird-retry');
+const bbRetry = require('bluebird-retry');
 const lodash = require('lodash');
+const promiseRetry = require('promise-retry');
 // const backoff = require('backoff');
 
 const LAMBDA_RUNTIME = 'nodejs4.3';
@@ -139,7 +140,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
             const localAttachLoggingFunction = () => {
               return attachLogging(lambda, cloudWatchLogsClient, config, params);
             };
-            return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
+            return bbRetry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
           })
           .catch((err) => {
             console.error(`Error in createLambdaFunction(): ${JSON.stringify(err)}`);
@@ -148,7 +149,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
       }
       const existingFunctionArn = getResult.functionArn;
       return updateLambdaFunction(lambda, codePackage, params)
-        .then(() => updateLambdaConfig(lambda, params))
+        .then(() => retryUpdateLambdaConfig(lambda, params))
         .then(() => updateEventSource(lambda, config))
         .then(() => updatePushSource(lambda, snsClient, config, existingFunctionArn))
         .then(() => publishLambdaVersion(lambda, config))
@@ -156,7 +157,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
           const localAttachLoggingFunction = () => {
             return attachLogging(lambda, cloudWatchLogsClient, config, params);
           };
-          return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
+          return bbRetry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
         })
         .catch((err) => {
           console.error(`Error in updateLambdaFunction(): ${JSON.stringify(err)}`);
@@ -387,6 +388,22 @@ const updateLambdaConfig = (lambdaClient, params) => {
         resolve();
       }
     });
+  });
+};
+
+const retryUpdateLambdaConfig = (lambdaClient, params) => {
+  const promiseRetryOptions = {
+    retries: 8 // 256s (4m 16s)
+  };
+  return promiseRetry(promiseRetryOptions, (retry, number) => {
+    console.log(`updateLambdaConfig attempt #${number}`);
+    return updateLambdaConfig(lambdaClient, params)
+      .catch(err => {
+        if (err.code === 'TooManyRequestsException') {
+          retry(err);
+        }
+        throw err;
+      });
   });
 };
 
@@ -664,7 +681,7 @@ const attachLogging = (lambdaClient, cloudWatchLogsClient, config, params) => {
       console.error(`Error occurred in _attachLogging. [StatusCode: ${parsedStatusCode}]`);
       if (parsedStatusCode !== 429 && err.statusCode !== '429') {
         console.error(`Received a non-retry throttle error`);
-        throw new retry.StopError(`Recieved non-retry throttle error.  [Error: ${JSON.stringify(err)}]`);
+        throw new bbRetry.StopError(`Recieved non-retry throttle error.  [Error: ${JSON.stringify(err)}]`);
       }
     });
 };
