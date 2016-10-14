@@ -346,6 +346,7 @@ const updateLambdaFunction = (lambdaClient, codePackage, params) => {
     callUpdateFunctionCode.setStrategy(new backoff.ExponentialStrategy(backoffOptions));
     console.log('starting call with backoff');
     callUpdateFunctionCode.start();
+    console.log('call started');
 
     // ------
     // lambdaClient.updateFunctionCode(updateFunctionParams, (err) => {
