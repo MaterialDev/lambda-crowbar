@@ -158,12 +158,12 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
               return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
             })
             .catch((err) => {
-              console.error(`Error: ${JSON.stringify(err)}`);
+              console.error(`Error in updateLambdaFunction(): ${JSON.stringify(err)}`);
               throw err;
             });
       })
       .catch((err) => {
-        console.error(`Error: ${JSON.stringify(err)}`);
+        console.error(`Error in getLambdaFunction(): ${JSON.stringify(err)}`);
         throw err;
       });
 };
@@ -343,6 +343,7 @@ const updateLambdaFunction = (lambdaClient, codePackage, params) => {
     callUpdateFunctionCode.setStrategy(new backoff.ExponentialStrategy(backoffOptions));
     callUpdateFunctionCode.start();
 
+    // ------
     // lambdaClient.updateFunctionCode(updateFunctionParams, (err) => {
     //   if (err) {
     //     console.error(`UpdateFunction Error: ${JSON.stringify(err)}`);
@@ -450,7 +451,7 @@ const updatePushSource = (lambdaClient, snsClient, config, functionArn) => {
     return createTopicIfNotExists(snsClient, topicName)
       .then(() => subscribeLambdaToTopic(lambdaClient, snsClient, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId))
       .catch((err) => {
-        console.error(`Error: ${JSON.stringify(err)}`);
+        console.error(`Error creating topic: ${JSON.stringify(err)}`);
         throw err;
       });
   });
