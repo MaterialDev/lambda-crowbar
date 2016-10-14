@@ -317,10 +317,10 @@ const updateLambdaFunction = (lambdaClient, codePackage, params) => {
         reject(updateFunctionCodeErr);
       }
       else {
-        const callUpdateFunctionConfiguration = backoff.call(lambdaClient.updateFunctionConfiguration, params, (updateConfigErr) => {
+        const callUpdateFunctionConfiguration = backoff.call(lambdaClient.updateFunctionConfiguration, params, (updateConfigErr, data) => {
           console.log(`Number of callUpdateFunctionConfiguration retries: ${callUpdateFunctionConfiguration.getNumRetries()}`);
           if (updateConfigErr) {
-            console.error(`UpdateFunctionConfiguration Error: ${JSON.stringify(updateError)}`);
+            console.error(`UpdateFunctionConfiguration Error: ${JSON.stringify(updateConfigErr)}`);
             reject(updateConfigErr);
           }
           else {

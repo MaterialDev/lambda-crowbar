@@ -6,7 +6,7 @@ const babel = require('gulp-babel');
 
 gulp.task('default', ['test']);
 
-gulp.task('test', () => {
+gulp.task('test', ['build:lint'], () => {
   return gulp.src('test/**/*.js', {read: false})
     .pipe(mocha());
 });
