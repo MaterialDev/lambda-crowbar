@@ -336,11 +336,15 @@ const updateLambdaFunction = (lambdaClient, codePackage, params) => {
         callUpdateFunctionConfiguration.start();
       }
     });
+    console.log('setting retryIf');
     callUpdateFunctionCode.retryIf(updateFunctionCodeErr => {
       return updateFunctionCodeErr.code === 'TooManyRequestsException';
     });
+    console.log('setting failAfter');
     callUpdateFunctionCode.failAfter(maxBackoffRetries);
+    console.log('setting strategy');
     callUpdateFunctionCode.setStrategy(new backoff.ExponentialStrategy(backoffOptions));
+    console.log('starting call with backoff');
     callUpdateFunctionCode.start();
 
     // ------
