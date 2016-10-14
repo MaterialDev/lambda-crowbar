@@ -1,18 +1,8 @@
 'use strict';
 
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
-
-exports.deployLambda = deployLambda;
-exports.deployScheduleLambda = deployScheduleLambda;
-exports.createCloudWatchEventRule = createCloudWatchEventRule;
-exports.createCloudWatchTargets = createCloudWatchTargets;
 var fs = require('fs');
 var AWS = require('aws-sdk');
-var extend = require('util')._extend;
+var extend = require('util')._extend; //eslint-disable-line no-underscore-dangle
 var async = require('async');
 var HttpsProxyAgent = require('https-proxy-agent');
 var Bluebird = require('bluebird');
@@ -25,66 +15,71 @@ var nodeAwsLambda = function nodeAwsLambda() {
   return undefined;
 };
 
-function deployLambda(codePackage, config, lambdaClient, callback) {
-  return deployLambdaFunction(codePackage, config, lambdaClient).asCallback(callback);
-}
+nodeAwsLambda.prototype.deploy = function (codePackage, config, lambdaClient) {
+  return deployLambdaFunction(codePackage, config, lambdaClient);
+};
 
-/**
- * deploys a lambda, creates a rule, and then binds the lambda to the rule by creating a target
- * @param {file} codePackage a zip of the collection
- * @param {object} config note: should include the rule property that is an object of: {name, scheduleExpression, isEnabled, role, targetInput} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
- * @param lambdaClient
- * @param {function} callback the arguments are error and data
- *
- */
-function deployScheduleLambda(codePackage, config, lambdaClient, callback) {
-  var functionArn = '';
-
-  return deployLambdaFunction(codePackage, config, lambdaClient, callback).then(function (result) {
-    functionArn = result.functionArn;
-
-    if (!config.hasOwnProperty('rule') && (!config.rule.hasOwnProperty('name') || !config.rule.hasOwnProperty('scheduleExpression') || !config.rule.hasOwnProperty('isEnabled') || !config.rule.hasOwnProperty('role'))) {
-      throw new Error('rule is required. Please include a property called rule that is an object which has the following: {name, scheduleExpression, isEnabled, role}');
-    }
-
-    return createCloudWatchEventRuleFunction(config.rule);
-  }).then(function (eventResult) {
-    var targetInput = config.rule.targetInput ? JSON.stringify(config.rule.targetInput) : null;
-    return _createCloudWatchTargetsFunction({ Rule: config.rule.name, Targets: [{ Id: config.functionName + '-' + config.rule.name, Arn: functionArn, Input: targetInput }] });
-  }).catch(function (err) {
-    console.error('Error: ' + JSON.stringify(err));
-    throw err;
-  }).asCallback(callback);
-}
-
-/**
- * creates a rule
- * @param {object} config should include the rule property that is an object of: {name, scheduleExpression, isEnabled, role, targetInput} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
- * @param {function} callback
- */
-function createCloudWatchEventRule(config, callback) {
-  return createCloudWatchEventRuleFunction(config).catch(function (err) {
-    console.error('Error: ' + JSON.stringify(err));
-    throw err;
-  }).asCallback(callback);
-}
-
-/**
- * sets up a target, which creates the binding of a arn to a cloud watch event rule
- * @param {object} config {Rule, Targets} Rule is string (name of the rule, Targets is an array of {Arn *required*, Id *required*, Input, InputPath}. Arn of source linked to target, Id is a unique name for the target, Input the json
- * @param {function} callback
- */
-function createCloudWatchTargets(config, callback) {
-  return _createCloudWatchTargetsFunction(config).catch(function (err) {
-    console.error('Error: ' + JSON.stringify(err));
-    throw true;
-  }).asCallback(callback);
-}
+// /**
+//  * deploys a lambda, creates a rule, and then binds the lambda to the rule by creating a target
+//  * @param {file} codePackage a zip of the collection
+//  * @param {object} config note: should include the rule property that is an object of: {name, scheduleExpression, isEnabled, role, targetInput} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
+//  * @param lambdaClient
+//  *
+//  */
+// function deployScheduleLambda(codePackage, config, lambdaClient) {
+//   let functionArn = '';
+//
+//   return deployLambdaFunction(codePackage, config, lambdaClient)
+//       .then(result => {
+//         functionArn = result.functionArn;
+//
+//         if (!config.hasOwnProperty('rule') &&
+//             (!config.rule.hasOwnProperty('name') ||
+//              !config.rule.hasOwnProperty('scheduleExpression') ||
+//              !config.rule.hasOwnProperty('isEnabled') ||
+//              !config.rule.hasOwnProperty('role'))){
+//           throw new Error('rule is required. Please include a property called rule that is an object which has the following: {name, scheduleExpression, isEnabled, role}');
+//         }
+//
+//        return createCloudWatchEventRuleFunction(config.rule);
+//       }).then(eventResult => {
+//         let targetInput = config.rule.targetInput ? JSON.stringify(config.rule.targetInput) : null;
+//         return createCloudWatchTargetsFunction({Rule: config.rule.name, Targets: [{Id: `${config.functionName}-${config.rule.name}`, Arn: functionArn, Input: targetInput}]})
+//       }).catch((err) => {
+//         console.error(`Error: ${JSON.stringify(err)}`);
+//         throw err;
+//       });
+// }
+//
+// /**
+//  * creates a rule
+//  * @param {object} config should include the rule property that is an object of: {name, scheduleExpression, isEnabled, role, targetInput} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
+//  */
+// function createCloudWatchEventRule(config){
+//   return createCloudWatchEventRuleFunction(config)
+//       .catch((err) => {
+//         console.error(`Error: ${JSON.stringify(err)}`);
+//         throw err;
+//       });
+// }
+//
+// /**
+//  * sets up a target, which creates the binding of a arn to a cloud watch event rule
+//  * @param {object} config {Rule, Targets} Rule is string (name of the rule, Targets is an array of {Arn *required*, Id *required*, Input, InputPath}. Arn of source linked to target, Id is a unique name for the target, Input the json
+//  */
+// function createCloudWatchTargets(config){
+//   return createCloudWatchTargetsFunction(config)
+//       .catch((err) => {
+//         console.error(`Error: ${JSON.stringify(err)}`);
+//         throw true;
+//       });
+// }
 
 var deployLambdaFunction = function deployLambdaFunction(codePackage, config, lambdaClient) {
   var functionArn = '';
-  if (!lambdaClient) {
-    if ("profile" in config) {
+  var lambda = lambdaClient;
+  if (!lambda) {
+    if ('profile' in config) {
       AWS.config.credentials = new AWS.SharedIniFileCredentials({ profile: config.profile });
     }
 
@@ -96,10 +91,10 @@ var deployLambdaFunction = function deployLambdaFunction(codePackage, config, la
       AWS.config.httpOptions.agent = new HttpsProxyAgent(process.env.HTTPS_PROXY);
     }
 
-    lambdaClient = new AWS.Lambda({
+    lambda = new AWS.Lambda({
       region: 'region' in config ? config.region : 'us-east-1',
-      accessKeyId: "accessKeyId" in config ? config.accessKeyId : '',
-      secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ''
+      accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
+      secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
     });
 
     console.log('Access Key Id From Deployer: ' + config.accessKeyId);
@@ -108,13 +103,13 @@ var deployLambdaFunction = function deployLambdaFunction(codePackage, config, la
   var snsClient = new AWS.SNS({
     region: 'region' in config ? config.region : 'us-east-1',
     accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
-    secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
+    secretAccessKey: 'secretAccessKey' in config ? config.srcretAccessKey : ''
   });
 
   var cloudWatchLogsClient = new AWS.CloudWatchLogs({
     region: 'region' in config ? config.region : 'us-east-1',
-    accessKeyId: "accessKeyId" in config ? config.accessKeyId : "",
-    secretAccessKey: "secretAccessKey" in config ? config.secretAccessKey : ""
+    accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
+    secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
   });
 
   var params = {
@@ -127,123 +122,116 @@ var deployLambdaFunction = function deployLambdaFunction(codePackage, config, la
     Runtime: config.runtime || LAMBDA_RUNTIME
   };
 
-  return _getLambdaFunction(lambdaClient, params.FunctionName).then(function (getResult) {
+  return getLambdaFunction(lambda, params.FunctionName).then(function (getResult) {
     if (!getResult.lambdaExists) {
-      return _createLambdaFunction(lambdaClient, codePackage, params).then(function (createFunctionResult) {
+      return createLambdaFunction(lambda, codePackage, params).then(function (createFunctionResult) {
         functionArn = createFunctionResult.functionArn;
       }).then(function () {
-        return _updateEventSource(lambdaClient, config);
+        return updateEventSource(lambda, config);
       }).then(function () {
-        return _updatePushSource(lambdaClient, snsClient, config, functionArn);
+        return updatePushSource(lambda, snsClient, config, functionArn);
       }).then(function () {
         var localAttachLoggingFunction = function localAttachLoggingFunction() {
-          return _attachLogging(lambdaClient, cloudWatchLogsClient, config, params);
+          return attachLogging(lambda, cloudWatchLogsClient, config, params);
         };
         return retry(localAttachLoggingFunction, { max_tries: 3, interval: 1000, backoff: 500 });
       }).catch(function (err) {
         console.error('Error: ' + JSON.stringify(err));
         throw err;
       });
-    } else {
-      var _ret = function () {
-        var existingFunctionArn = getResult.functionArn;
-        return {
-          v: _updateLambdaFunction(lambdaClient, codePackage, params).then(function () {
-            return _updateEventSource(lambdaClient, config);
-          }).then(function () {
-            return _updatePushSource(lambdaClient, snsClient, config, existingFunctionArn);
-          }).then(function () {
-            return _publishLambdaVersion(lambdaClient, config);
-          }).then(function () {
-            var localAttachLoggingFunction = function localAttachLoggingFunction() {
-              return _attachLogging(lambdaClient, cloudWatchLogsClient, config, params);
-            };
-            return retry(localAttachLoggingFunction, { max_tries: 3, interval: 1000, backoff: 500 });
-          }).catch(function (err) {
-            console.error('Error: ' + JSON.stringify(err));
-            throw err;
-          })
-        };
-      }();
-
-      if ((typeof _ret === 'undefined' ? 'undefined' : _typeof(_ret)) === "object") return _ret.v;
     }
+    var existingFunctionArn = getResult.functionArn;
+    return updateLambdaFunction(lambda, codePackage, params).then(function () {
+      return updateEventSource(lambda, config);
+    }).then(function () {
+      return updatePushSource(lambda, snsClient, config, existingFunctionArn);
+    }).then(function () {
+      return publishLambdaVersion(lambda, config);
+    }).then(function () {
+      var localAttachLoggingFunction = function localAttachLoggingFunction() {
+        return attachLogging(lambda, cloudWatchLogsClient, config, params);
+      };
+      return retry(localAttachLoggingFunction, { max_tries: 3, interval: 1000, backoff: 500 });
+    }).catch(function (err) {
+      console.error('Error: ' + JSON.stringify(err));
+      throw err;
+    });
   }).catch(function (err) {
     console.error('Error: ' + JSON.stringify(err));
     throw err;
   });
 };
 
-/**
- * Creates or Updates rules, this means you can disable or enable the state of this
- * @param {object} config {name, scheduleExpression, isEnabled, role} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
- * @returns {Promise<object>|Promise<Error>}
- * @private
- */
-var createCloudWatchEventRuleFunction = function createCloudWatchEventRuleFunction(config) {
-  /* params
-   {Name: 'STRING_VALUE', // required!//
-    Description: 'STRING_VALUE',
-    EventPattern: 'STRING_VALUE',
-    RoleArn: 'STRING_VALUE',
-    ScheduleExpression: 'STRING_VALUE',
-    State: 'ENABLED | DISABLED' }
-  */
-
-  var params = {
-    Name: config.name,
-    ScheduleExpression: config.scheduleExpression,
-    Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution',
-    State: config.isEnabled ? 'ENABLED' : 'DISABLED'
-  };
-
-  var cloudWatchEvents = new AWS.CloudWatchEvents({
-    region: 'region' in config ? config.region : 'us-east-1',
-    accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
-    secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
-  });
-
-  return new Bluebird(function (resolve, reject) {
-    cloudWatchEvents.putRule(params, function (err, data) {
-      if (err) {
-        return reject(err);
-      }
-
-      return resolve(data);
-    });
-  });
-};
-
-var _createCloudWatchTargetsFunction = function _createCloudWatchTargetsFunction(config) {
-  var cloudWatchEvents = new AWS.CloudWatchEvents({
-    region: 'region' in config ? config.region : 'us-east-1',
-    accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
-    secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
-  });
-
-  //targets[{Id, Arn, Input}] Input is the JSON text sent to target
-  return new Bluebird(function (resolve, reject) {
-    cloudWatchEvents.putTargets(params, function (err, data) {
-      if (err) {
-        return reject(err);
-      }
-
-      return resolve(data);
-    });
-  });
-};
-
-/**
- *
- * @param lambdaClient
- * @param functionName
- * @returns {bluebird|exports|module.exports}
- * Resolved Object:
- * lambdaExists - boolean flag that is true if lambda exists
- * functionArn - this is a string that contains arn to the lambda function
- * @private
- */
-var _getLambdaFunction = function _getLambdaFunction(lambdaClient, functionName) {
+// /**
+//  * Creates or Updates rules, this means you can disable or enable the state of this
+//  * @param {object} config {name, scheduleExpression, isEnabled, role} scheduleExpression is a duration, you can write it like so: 'cron(0 20 * * ? *)', 'rate(5 minutes)'. Note if using rate, you can also have seconds, minutes, hours. isEnabled true or false
+//  * @returns {Promise<object>|Promise<Error>}
+//  * @private
+//  */
+// const createCloudWatchEventRuleFunction = function (config) {
+//   /* params
+//    {Name: 'STRING_VALUE', // required!//
+//     Description: 'STRING_VALUE',
+//     EventPattern: 'STRING_VALUE',
+//     RoleArn: 'STRING_VALUE',
+//     ScheduleExpression: 'STRING_VALUE',
+//     State: 'ENABLED | DISABLED' }
+//   */
+//
+//   const params = {
+//     Name: config.name,
+//     ScheduleExpression: config.scheduleExpression,
+//     Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution',
+//     State: config.isEnabled ? 'ENABLED' : 'DISABLED'
+//   };
+//
+//   const cloudWatchEvents = new AWS.CloudWatchEvents({
+//     region: 'region' in config ? config.region : 'us-east-1',
+//     accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
+//     secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
+//   });
+//
+//   return new Bluebird((resolve, reject) => {
+//     cloudWatchEvents.putRule(params, function (err, data) {
+//       if (err) {
+//         return reject(err);
+//       }
+//
+//       return resolve(data);
+//     });
+//   });
+// };
+//
+// const createCloudWatchTargetsFunction = function (config) {
+//   const cloudWatchEvents = new AWS.CloudWatchEvents({
+//     region: 'region' in config ? config.region : 'us-east-1',
+//     accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
+//     secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
+//   });
+//
+//   //targets[{Id, Arn, Input}] Input is the JSON text sent to target
+//   return new Bluebird((resolve, reject) => {
+//     cloudWatchEvents.putTargets(params, function (err, data) {
+//       if (err) {
+//         return reject(err);
+//       }
+//
+//       return resolve(data);
+//     });
+//   });
+// };
+//
+// /**
+//  *
+//  * @param lambdaClient
+//  * @param functionName
+//  * @returns {bluebird|exports|module.exports}
+//  * Resolved Object:
+//  * lambdaExists - boolean flag that is true if lambda exists
+//  * functionArn - this is a string that contains arn to the lambda function
+//  * @private
+//  */
+var getLambdaFunction = function getLambdaFunction(lambdaClient, functionName) {
   return new Bluebird(function (resolve, reject) {
     var getFunctionParams = {
       FunctionName: functionName
@@ -275,15 +263,15 @@ var _getLambdaFunction = function _getLambdaFunction(lambdaClient, functionName)
  * @returns {bluebird|exports|module.exports}
  * @private
  */
-var _createLambdaFunction = function _createLambdaFunction(lambdaClient, codePackage, params) {
+var createLambdaFunction = function createLambdaFunction(lambdaClient, codePackage, params) {
   return new Bluebird(function (resolve, reject) {
     console.log('Creating LambdaFunction. [FunctionName: ' + params.FunctionName + ']');
-    var data = fs.readFileSync(codePackage);
-
-    params.Code = { ZipFile: data };
-    lambdaClient.createFunction(params, function (err, data) {
+    var zipFileContents = fs.readFileSync(codePackage);
+    var localParams = params;
+    localParams.Code = { ZipFile: zipFileContents };
+    lambdaClient.createFunction(localParams, function (err, data) {
       if (err) {
-        console.erroor('Create function failed. Check your iam:PassRole permissions. [Error: ' + JSON.stringify(err) + ']');
+        console.error('Create function failed. Check your iam:PassRole permissions. [Error: ' + JSON.stringify(err) + ']');
         reject(err);
       } else {
         console.log('Created Lambda successfully. [Data: ' + JSON.stringify(data) + ']');
@@ -301,26 +289,26 @@ var _createLambdaFunction = function _createLambdaFunction(lambdaClient, codePac
  * @returns {bluebird|exports|module.exports}
  * @private
  */
-var _updateLambdaFunction = function _updateLambdaFunction(lambdaClient, codePackage, params) {
+var updateLambdaFunction = function updateLambdaFunction(lambdaClient, codePackage, params) {
   return new Bluebird(function (resolve, reject) {
     console.log('Updating LambdaFunction. [FunctionName: ' + params.FunctionName + ']');
-    var data = fs.readFileSync(codePackage);
+    var zipFileContents = fs.readFileSync(codePackage);
 
     var updateFunctionParams = {
       FunctionName: params.FunctionName,
-      ZipFile: data,
+      ZipFile: zipFileContents,
       Publish: false
     };
 
-    lambdaClient.updateFunctionCode(updateFunctionParams, function (err, data) {
+    lambdaClient.updateFunctionCode(updateFunctionParams, function (err) {
       if (err) {
-        console.lerror('UpdateFunction Error: ' + JSON.stringify(err));
+        console.error('UpdateFunction Error: ' + JSON.stringify(err));
         reject(err);
       } else {
-        lambdaClient.updateFunctionConfiguration(params, function (err, data) {
-          if (err) {
-            console.error('UpdateFunctionConfiguration Error: ' + JSON.stringify(err));
-            reject(err);
+        lambdaClient.updateFunctionConfiguration(params, function (updateError, data) {
+          if (updateError) {
+            console.error('UpdateFunctionConfiguration Error: ' + JSON.stringify(updateError));
+            reject(updateError);
           } else {
             console.log('Successfully updated lambda. [FunctionName: ' + params.FunctionName + '] [Data: ' + JSON.stringify(data) + ']');
             resolve();
@@ -338,7 +326,7 @@ var _updateLambdaFunction = function _updateLambdaFunction(lambdaClient, codePac
  * @returns {bluebird|exports|module.exports}
  * @private
  */
-var _updateEventSource = function _updateEventSource(lambdaClient, config) {
+var updateEventSource = function updateEventSource(lambdaClient, config) {
   return new Bluebird(function (resolve, reject) {
     if (!config.eventSource) {
       resolve();
@@ -356,31 +344,29 @@ var _updateEventSource = function _updateEventSource(lambdaClient, config) {
 
     lambdaClient.listEventSourceMappings(getEventSourceMappingsParams, function (err, data) {
       if (err) {
-        console.error("List event source mapping failed, please make sure you have permission");
+        console.error('List event source mapping failed, please make sure you have permission');
         console.error('error: ' + err);
         reject(err);
       } else if (data.EventSourceMappings.length === 0) {
-        lambdaClient.createEventSourceMapping(localParams, function (err, data) {
-          if (err) {
-            console.error('Failed to create event source mapping! Error: ' + err);
-            reject(err);
+        lambdaClient.createEventSourceMapping(localParams, function (mappingError) {
+          if (mappingError) {
+            console.error('Failed to create event source mapping! Error: ' + mappingError);
+            reject(mappingError);
           } else {
             resolve();
           }
         });
       } else {
         async.eachSeries(data.EventSourceMappings, function (mapping, iteratorCallback) {
-
           var updateEventSourceMappingParams = {
             UUID: mapping.UUID,
             BatchSize: localParams.BatchSize
           };
-
           lambdaClient.updateEventSourceMapping(updateEventSourceMappingParams, iteratorCallback);
-        }, function (err) {
-          if (err) {
-            console.error('Update event source mapping failed. ' + err);
-            reject(err);
+        }, function (updateMappingError) {
+          if (updateMappingError) {
+            console.error('Update event source mapping failed. ' + updateMappingError);
+            reject(updateMappingError);
           } else {
             resolve();
           }
@@ -399,7 +385,7 @@ var _updateEventSource = function _updateEventSource(lambdaClient, config) {
  * @returns {bluebird|exports|module.exports}
  * @private
  */
-var _updatePushSource = function _updatePushSource(lambdaClient, snsClient, config, functionArn) {
+var updatePushSource = function updatePushSource(lambdaClient, snsClient, config, functionArn) {
   if (!config.pushSource) {
     return Bluebird.resolve(true);
   }
@@ -411,8 +397,8 @@ var _updatePushSource = function _updatePushSource(lambdaClient, snsClient, conf
     var currentTopicStatementId = currentTopic.StatementId;
     var topicName = currentTopic.TopicArn.split(':').pop();
 
-    return _createTopicIfNotExists(snsClient, topicName).then(function () {
-      return _subscribeLambdaToTopic(lambdaClient, snsClient, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId);
+    return createTopicIfNotExists(snsClient, topicName).then(function () {
+      return subscribeLambdaToTopic(lambdaClient, snsClient, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId);
     }).catch(function (err) {
       console.error('Error: ' + JSON.stringify(err));
       throw err;
@@ -427,7 +413,7 @@ var _updatePushSource = function _updatePushSource(lambdaClient, snsClient, conf
  * @returns {bluebird|exports|module.exports}
  * @private
  */
-var _createTopicIfNotExists = function _createTopicIfNotExists(snsClient, topicName) {
+var createTopicIfNotExists = function createTopicIfNotExists(snsClient, topicName) {
   return new Bluebird(function (resolve, reject) {
     var listTopicParams = {};
 
@@ -446,10 +432,10 @@ var _createTopicIfNotExists = function _createTopicIfNotExists(snsClient, topicN
             Name: topicName
           };
 
-          snsClient.createTopic(createParams, function (err, data) {
-            if (err) {
-              console.error('Failed to create to topic. Error ' + JSON.stringify(err));
-              reject(err);
+          snsClient.createTopic(createParams, function (createTopicError) {
+            if (createTopicError) {
+              console.error('Failed to create to topic. Error ' + JSON.stringify(createTopicError));
+              reject(createTopicError);
             } else {
               resolve();
             }
@@ -472,16 +458,15 @@ var _createTopicIfNotExists = function _createTopicIfNotExists(snsClient, topicN
  * @returns {bluebird|exports|module.exports}
  * @private
  */
-var _subscribeLambdaToTopic = function _subscribeLambdaToTopic(lambdaClient, snsClient, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId) {
+var subscribeLambdaToTopic = function subscribeLambdaToTopic(lambdaClient, snsClient, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId) {
   return new Bluebird(function (resolve, reject) {
-
     var subParams = {
       Protocol: 'lambda',
       Endpoint: functionArn,
       TopicArn: currentTopicNameArn
     };
 
-    snsClient.subscribe(subParams, function (err, data) {
+    snsClient.subscribe(subParams, function (err) {
       if (err) {
         console.error('Failed to subscribe to topic. [Topic Name: ' + topicName + '] [TopicArn: ' + subParams.TopicArn + '] [Error: ' + JSON.stringify(err) + ']');
         reject(err);
@@ -490,28 +475,28 @@ var _subscribeLambdaToTopic = function _subscribeLambdaToTopic(lambdaClient, sns
           FunctionName: config.functionName,
           StatementId: currentTopicStatementId
         };
-        lambdaClient.removePermission(removePermissionParams, function (err, data) {
-          if (err && err.StatusCode === 404) {
-            console.error('Permission does not exist. [Error: ' + JSON.stringify(err) + ']');
-          } else if (err && err.statusCode !== 404) {
-            console.error('Unable to delete permission. [Error: ' + JSON.stringify(err) + ']');
+        lambdaClient.removePermission(removePermissionParams, function (removePermissionError, data) {
+          if (removePermissionError && removePermissionError.StatusCode === 404) {
+            console.error('Permission does not exist. [Error: ' + JSON.stringify(removePermissionError) + ']');
+          } else if (removePermissionError && removePermissionError.statusCode !== 404) {
+            console.error('Unable to delete permission. [Error: ' + JSON.stringify(removePermissionError) + ']');
           } else {
             console.log('Permission deleted successfully! [Data: ' + JSON.stringify(data) + ']');
           }
 
           var permissionParams = {
             FunctionName: config.functionName,
-            Action: "lambda:InvokeFunction",
-            Principal: "sns.amazonaws.com",
+            Action: 'lambda:InvokeFunction',
+            Principal: 'sns.amazonaws.com',
             StatementId: currentTopicStatementId,
             SourceArn: currentTopicNameArn
           };
-          lambdaClient.addPermission(permissionParams, function (err, data) {
-            if (err) {
-              console.error('Failed to add permission. [Error: ' + JSON.stringify(err) + ']');
-              reject(err);
+          lambdaClient.addPermission(permissionParams, function (addPermissionError, addPermissionResult) {
+            if (addPermissionError) {
+              console.error('Failed to add permission. [Error: ' + JSON.stringify(addPermissionError) + ']');
+              reject(addPermissionError);
             } else {
-              console.log('Succeeded in adding permission. [Data: ' + JSON.stringify(data) + ']');
+              console.log('Succeeded in adding permission. [Data: ' + JSON.stringify(addPermissionResult) + ']');
               resolve();
             }
           });
@@ -521,39 +506,23 @@ var _subscribeLambdaToTopic = function _subscribeLambdaToTopic(lambdaClient, sns
   });
 };
 
-/**
- *
- * @param lambdaClient
- * @param config
- * @returns {bluebird|exports|module.exports}
- * @private
- */
-var _publishLambdaVersion = function _publishLambdaVersion(lambdaClient, config) {
-  return _publishVersion(lambdaClient, config).then(function () {
-    return _listVersionsByFunction(lambdaClient, config);
+var publishLambdaVersion = function publishLambdaVersion(lambdaClient, config) {
+  return publishVersion(lambdaClient, config).then(function () {
+    return listVersionsByFunction(lambdaClient, config);
   }).then(function (listVersionsResult) {
-
     var versionsToDelete = [];
     var last = listVersionsResult.Versions[listVersionsResult.Versions.length - 1].Version;
     for (var index = 0; index < listVersionsResult.Versions.length; ++index) {
       var version = listVersionsResult.Versions[index].Version;
-      if (version !== "$LATEST" && version !== last) {
-        versionsToDelete.push(_deleteLambdaFunctionVersion(lambdaClient, config, version));
+      if (version !== '$LATEST' && version !== last) {
+        versionsToDelete.push(deleteLambdaFunctionVersion(lambdaClient, config, version));
       }
     }
-
     return Bluebird.all(versionsToDelete);
   });
 };
 
-/**
- *
- * @param lambdaClient
- * @param config
- * @returns {Promise}
- * @private
- */
-var _publishVersion = function _publishVersion(lambdaClient, config) {
+var publishVersion = function publishVersion(lambdaClient, config) {
   return new Bluebird(function (resolve, reject) {
     var publishVersionParams = { FunctionName: config.functionName };
 
@@ -569,14 +538,7 @@ var _publishVersion = function _publishVersion(lambdaClient, config) {
   });
 };
 
-/**
- *
- * @param lambdaClient
- * @param config
- * @returns {bluebird|exports|module.exports}
- * @private
- */
-var _listVersionsByFunction = function _listVersionsByFunction(lambdaClient, config) {
+var listVersionsByFunction = function listVersionsByFunction(lambdaClient, config) {
   return new Bluebird(function (resolve, reject) {
     var listVersionsParams = { FunctionName: config.functionName };
     lambdaClient.listVersionsByFunction(listVersionsParams, function (listErr, data) {
@@ -590,23 +552,14 @@ var _listVersionsByFunction = function _listVersionsByFunction(lambdaClient, con
   });
 };
 
-/**
- *
- * @param lambdaClient
- * @param config
- * @param version
- * @returns {bluebird|exports|module.exports}
- * @private
- */
-var _deleteLambdaFunctionVersion = function _deleteLambdaFunctionVersion(lambdaClient, config, version) {
+var deleteLambdaFunctionVersion = function deleteLambdaFunctionVersion(lambdaClient, config, version) {
   return new Bluebird(function (resolve) {
-
     var deleteFunctionParams = {
       FunctionName: config.functionName,
       Qualifier: version
     };
 
-    lambdaClient.deleteFunction(deleteFunctionParams, function (err, data) {
+    lambdaClient.deleteFunction(deleteFunctionParams, function (err) {
       if (err) {
         console.error('Failed to delete lambda version. [FunctionName: ' + config.functionName + '] [Version: ' + version + ']');
       } else {
@@ -617,21 +570,12 @@ var _deleteLambdaFunctionVersion = function _deleteLambdaFunctionVersion(lambdaC
   });
 };
 
-/**
- *
- * @param lambdaClient
- * @param cloudWatchLogsClient
- * @param config
- * @param params
- * @returns {*}
- * @private
- */
-var _attachLogging = function _attachLogging(lambdaClient, cloudWatchLogsClient, config, params) {
+var attachLogging = function attachLogging(lambdaClient, cloudWatchLogsClient, config, params) {
   if (!config.logging) {
     return Promise.resolve('no logging to attach');
   }
-  return _addLoggingLambdaPermissionToLambda(lambdaClient, config).then(function () {
-    return _updateCloudWatchLogsSubscription(cloudWatchLogsClient, config, params);
+  return addLoggingLambdaPermissionToLambda(lambdaClient, config).then(function () {
+    return updateCloudWatchLogsSubscription(cloudWatchLogsClient, config, params);
   }).catch(function (err) {
     var parsedStatusCode = lodash.get(err, 'statusCode', '');
     console.error('Error occurred in _attachLogging. [StatusCode: ' + parsedStatusCode + ']');
@@ -642,14 +586,7 @@ var _attachLogging = function _attachLogging(lambdaClient, cloudWatchLogsClient,
   });
 };
 
-/**
- *
- * @param lambdaClient
- * @param config
- * @returns {bluebird|exports|module.exports}
- * @private
- */
-var _addLoggingLambdaPermissionToLambda = function _addLoggingLambdaPermissionToLambda(lambdaClient, config) {
+var addLoggingLambdaPermissionToLambda = function addLoggingLambdaPermissionToLambda(lambdaClient, config) {
   return new Bluebird(function (resolve, reject) {
     // Need to add the permission once, but if it fails the second time no worries.
     var permissionParams = {
@@ -675,15 +612,7 @@ var _addLoggingLambdaPermissionToLambda = function _addLoggingLambdaPermissionTo
   });
 };
 
-/**
- *
- * @param cloudWatchLogsClient
- * @param config
- * @param params
- * @returns {bluebird|exports|module.exports}
- * @private
- */
-var _updateCloudWatchLogsSubscription = function _updateCloudWatchLogsSubscription(cloudWatchLogsClient, config, params) {
+var updateCloudWatchLogsSubscription = function updateCloudWatchLogsSubscription(cloudWatchLogsClient, config, params) {
   return new Bluebird(function (resolve, reject) {
     var cloudWatchParams = {
       destinationArn: config.logging.Arn, /* required */

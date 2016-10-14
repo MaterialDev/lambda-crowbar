@@ -6,8 +6,14 @@ const HttpsProxyAgent = require('https-proxy-agent');
 const Bluebird = require('bluebird');
 const retry = require('bluebird-retry');
 const lodash = require('lodash');
+const backoff = require('backoff');
 
 const LAMBDA_RUNTIME = 'nodejs4.3';
+const backoffOptions = {
+  initialDelay: 1000,
+  maxDelay: 60000
+};
+const maxBackoffRetries = 7;
 
 const nodeAwsLambda = () => {
   return this;
@@ -303,24 +309,59 @@ const updateLambdaFunction = (lambdaClient, codePackage, params) => {
       Publish: false
     };
 
-    lambdaClient.updateFunctionCode(updateFunctionParams, (err) => {
-      if (err) {
-        console.error(`UpdateFunction Error: ${JSON.stringify(err)}`);
-        reject(err);
+    const callUpdateFunctionCode = backoff.call(lambdaClient.updateFunctionCode, updateFunctionParams, (updateFunctionCodeErr) => {
+      console.log(`Number of callUpdateFunctionCode retries: ${callUpdateFunctionCode.getNumRetries()}`);
+
+      if (updateFunctionCodeErr) {
+        console.error(`UpdateFunction Error: ${JSON.stringify(updateFunctionCodeErr)}`);
+        reject(updateFunctionCodeErr);
       }
       else {
-        lambdaClient.updateFunctionConfiguration(params, (updateError, data) => {
-          if (updateError) {
+        const callUpdateFunctionConfiguration = backoff.call(lambdaClient.updateFunctionConfiguration, params, (updateConfigErr) => {
+          console.log(`Number of callUpdateFunctionConfiguration retries: ${callUpdateFunctionConfiguration.getNumRetries()}`);
+          if (updateConfigErr) {
             console.error(`UpdateFunctionConfiguration Error: ${JSON.stringify(updateError)}`);
-            reject(updateError);
+            reject(updateConfigErr);
           }
           else {
             console.log(`Successfully updated lambda. [FunctionName: ${params.FunctionName}] [Data: ${JSON.stringify(data)}]`);
             resolve();
           }
         });
+        callUpdateFunctionConfiguration.retryIf(updateConfigErr => {
+          return updateConfigErr.code === 'TooManyRequestsException';
+        });
+        callUpdateFunctionConfiguration.failAfter(maxBackoffRetries);
+        callUpdateFunctionConfiguration.setStrategy(new backoff.ExponentialStrategy(backoffOptions));
+        callUpdateFunctionConfiguration.start();
       }
     });
+    callUpdateFunctionCode.retryIf(updateFunctionCodeErr => {
+      return updateFunctionCodeErr.code === 'TooManyRequestsException';
+    });
+    callUpdateFunctionCode.failAfter(maxBackoffRetries);
+    callUpdateFunctionCode.setStrategy(new backoff.ExponentialStrategy(backoffOptions));
+    callUpdateFunctionCode.start();
+
+    // lambdaClient.updateFunctionCode(updateFunctionParams, (err) => {
+    //   if (err) {
+    //     console.error(`UpdateFunction Error: ${JSON.stringify(err)}`);
+    //     reject(err);
+    //   }
+    //   else {
+    //     lambdaClient.updateFunctionConfiguration(params, (updateError, data) => {
+    //       if (updateError) {
+    //         console.error(`UpdateFunctionConfiguration Error: ${JSON.stringify(updateError)}`);
+    //         // {"message":"Rate exceeded","code":"TooManyRequestsException","time":"2016-10-12T19:00:52.426Z","requestId":"3279a1fc-90ae-11e6-8bfc-5b34443513a7","statusCode":429,"retryable":false,"retryDelay":26.07559027784916}
+    //         reject(updateError);
+    //       }
+    //       else {
+    //         console.log(`Successfully updated lambda. [FunctionName: ${params.FunctionName}] [Data: ${JSON.stringify(data)}]`);
+    //         resolve();
+    //       }
+    //     });
+    //   }
+    // });
   });
 };
 
