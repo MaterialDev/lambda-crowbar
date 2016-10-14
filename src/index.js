@@ -127,45 +127,46 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
   };
 
   return getLambdaFunction(lambda, params.FunctionName)
-      .then((getResult) => {
-        if (!getResult.lambdaExists) {
-          return createLambdaFunction(lambda, codePackage, params)
-              .then((createFunctionResult) => {
-                functionArn = createFunctionResult.functionArn;
-              })
-              .then(() => updateEventSource(lambda, config))
-              .then(() => updatePushSource(lambda, snsClient, config, functionArn))
-              .then(() => {
-                const localAttachLoggingFunction = () => {
-                  return attachLogging(lambda, cloudWatchLogsClient, config, params);
-                };
-                return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
-              })
-              .catch((err) => {
-                console.error(`Error in createLambdaFunction(): ${JSON.stringify(err)}`);
-                throw err;
-              });
-        }
-        const existingFunctionArn = getResult.functionArn;
-        return updateLambdaFunction(lambda, codePackage, params)
-            .then(() => updateEventSource(lambda, config))
-            .then(() => updatePushSource(lambda, snsClient, config, existingFunctionArn))
-            .then(() => publishLambdaVersion(lambda, config))
-            .then(() => {
-              const localAttachLoggingFunction = () => {
-                return attachLogging(lambda, cloudWatchLogsClient, config, params);
-              };
-              return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
-            })
-            .catch((err) => {
-              console.error(`Error in updateLambdaFunction(): ${JSON.stringify(err)}`);
-              throw err;
-            });
-      })
-      .catch((err) => {
-        console.error(`Error in getLambdaFunction(): ${JSON.stringify(err)}`);
-        throw err;
-      });
+    .then((getResult) => {
+      if (!getResult.lambdaExists) {
+        return createLambdaFunction(lambda, codePackage, params)
+          .then((createFunctionResult) => {
+            functionArn = createFunctionResult.functionArn;
+          })
+          .then(() => updateEventSource(lambda, config))
+          .then(() => updatePushSource(lambda, snsClient, config, functionArn))
+          .then(() => {
+            const localAttachLoggingFunction = () => {
+              return attachLogging(lambda, cloudWatchLogsClient, config, params);
+            };
+            return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
+          })
+          .catch((err) => {
+            console.error(`Error in createLambdaFunction(): ${JSON.stringify(err)}`);
+            throw err;
+          });
+      }
+      const existingFunctionArn = getResult.functionArn;
+      return updateLambdaFunction(lambda, codePackage, params)
+        .then(() => updateLambdaConfig(lambda, params))
+        .then(() => updateEventSource(lambda, config))
+        .then(() => updatePushSource(lambda, snsClient, config, existingFunctionArn))
+        .then(() => publishLambdaVersion(lambda, config))
+        .then(() => {
+          const localAttachLoggingFunction = () => {
+            return attachLogging(lambda, cloudWatchLogsClient, config, params);
+          };
+          return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
+        })
+        .catch((err) => {
+          console.error(`Error in updateLambdaFunction(): ${JSON.stringify(err)}`);
+          throw err;
+        });
+    })
+    .catch((err) => {
+      console.error(`Error in getLambdaFunction(): ${JSON.stringify(err)}`);
+      throw err;
+    });
 };
 
 // /**
@@ -309,65 +310,83 @@ const updateLambdaFunction = (lambdaClient, codePackage, params) => {
       Publish: false
     };
 
-    const callUpdateFunctionCode = backoff.call(lambdaClient.updateFunctionCode, updateFunctionParams, (updateFunctionCodeErr) => {
-      console.log(`Number of callUpdateFunctionCode retries: ${callUpdateFunctionCode.getNumRetries()}`);
-
-      if (updateFunctionCodeErr) {
-        console.error(`UpdateFunction Error: ${JSON.stringify(updateFunctionCodeErr)}`);
-        reject(updateFunctionCodeErr);
-      }
-      else {
-        const callUpdateFunctionConfiguration = backoff.call(lambdaClient.updateFunctionConfiguration, params, (updateConfigErr, data) => {
-          console.log(`Number of callUpdateFunctionConfiguration retries: ${callUpdateFunctionConfiguration.getNumRetries()}`);
-          if (updateConfigErr) {
-            console.error(`UpdateFunctionConfiguration Error: ${JSON.stringify(updateConfigErr)}`);
-            reject(updateConfigErr);
-          }
-          else {
-            console.log(`Successfully updated lambda. [FunctionName: ${params.FunctionName}] [Data: ${JSON.stringify(data)}]`);
-            resolve();
-          }
-        });
-        callUpdateFunctionConfiguration.retryIf(updateConfigErr => {
-          return updateConfigErr.code === 'TooManyRequestsException';
-        });
-        callUpdateFunctionConfiguration.failAfter(maxBackoffRetries);
-        callUpdateFunctionConfiguration.setStrategy(new backoff.ExponentialStrategy(backoffOptions));
-        callUpdateFunctionConfiguration.start();
-      }
-    });
-    console.log('setting retryIf');
-    callUpdateFunctionCode.retryIf(updateFunctionCodeErr => {
-      return updateFunctionCodeErr.code === 'TooManyRequestsException';
-    });
-    console.log('setting failAfter');
-    callUpdateFunctionCode.failAfter(maxBackoffRetries);
-    console.log('setting strategy');
-    callUpdateFunctionCode.setStrategy(new backoff.ExponentialStrategy(backoffOptions));
-    console.log('starting call with backoff');
-    callUpdateFunctionCode.start();
-    console.log('call started');
-
-    // ------
-    // lambdaClient.updateFunctionCode(updateFunctionParams, (err) => {
-    //   if (err) {
-    //     console.error(`UpdateFunction Error: ${JSON.stringify(err)}`);
-    //     reject(err);
+    // const callUpdateFunctionCode = backoff.call(lambdaClient.updateFunctionCode, updateFunctionParams, (updateFunctionCodeErr) => {
+    //   console.log(`Number of callUpdateFunctionCode retries: ${callUpdateFunctionCode.getNumRetries()}`);
+    //
+    //   if (updateFunctionCodeErr) {
+    //     console.error(`UpdateFunction Error: ${JSON.stringify(updateFunctionCodeErr)}`);
+    //     reject(updateFunctionCodeErr);
     //   }
     //   else {
-    //     lambdaClient.updateFunctionConfiguration(params, (updateError, data) => {
-    //       if (updateError) {
-    //         console.error(`UpdateFunctionConfiguration Error: ${JSON.stringify(updateError)}`);
-    //         // {"message":"Rate exceeded","code":"TooManyRequestsException","time":"2016-10-12T19:00:52.426Z","requestId":"3279a1fc-90ae-11e6-8bfc-5b34443513a7","statusCode":429,"retryable":false,"retryDelay":26.07559027784916}
-    //         reject(updateError);
+    //     const callUpdateFunctionConfiguration = backoff.call(lambdaClient.updateFunctionConfiguration, params, (updateConfigErr, data) => {
+    //       console.log(`Number of callUpdateFunctionConfiguration retries: ${callUpdateFunctionConfiguration.getNumRetries()}`);
+    //       if (updateConfigErr) {
+    //         console.error(`UpdateFunctionConfiguration Error: ${JSON.stringify(updateConfigErr)}`);
+    //         reject(updateConfigErr);
     //       }
     //       else {
     //         console.log(`Successfully updated lambda. [FunctionName: ${params.FunctionName}] [Data: ${JSON.stringify(data)}]`);
     //         resolve();
     //       }
     //     });
+    //     callUpdateFunctionConfiguration.retryIf(updateConfigErr => {
+    //       return updateConfigErr.code === 'TooManyRequestsException';
+    //     });
+    //     callUpdateFunctionConfiguration.failAfter(maxBackoffRetries);
+    //     callUpdateFunctionConfiguration.setStrategy(new backoff.ExponentialStrategy(backoffOptions));
+    //     callUpdateFunctionConfiguration.start();
     //   }
     // });
+    // console.log('setting retryIf');
+    // callUpdateFunctionCode.retryIf(updateFunctionCodeErr => {
+    //   return updateFunctionCodeErr.code === 'TooManyRequestsException';
+    // });
+    // console.log('setting failAfter');
+    // callUpdateFunctionCode.failAfter(maxBackoffRetries);
+    // console.log('setting strategy');
+    // callUpdateFunctionCode.setStrategy(new backoff.ExponentialStrategy(backoffOptions));
+    // console.log('starting call with backoff');
+    // callUpdateFunctionCode.start();
+    // console.log('call started');
+
+    lambdaClient.updateFunctionCode(updateFunctionParams, (err, data) => {
+      if (err) {
+        console.error(`UpdateFunction Error: ${JSON.stringify(err)}`);
+        reject(err);
+      }
+      else {
+        console.log(`Successfully update lambda function code [FunctionName: ${params.FunctionName}] [Data: ${JSON.stringify(data, null, 2)}]`);
+        resolve();
+      }
+      // else {
+      //   lambdaClient.updateFunctionConfiguration(params, (updateError, data) => {
+      //     if (updateError) {
+      //       console.error(`UpdateFunctionConfiguration Error: ${JSON.stringify(updateError)}`);
+      //       // {"message":"Rate exceeded","code":"TooManyRequestsException","time":"2016-10-12T19:00:52.426Z","requestId":"3279a1fc-90ae-11e6-8bfc-5b34443513a7","statusCode":429,"retryable":false,"retryDelay":26.07559027784916}
+      //       reject(updateError);
+      //     }
+      //     else {
+      //       console.log(`Successfully updated lambda. [FunctionName: ${params.FunctionName}] [Data: ${JSON.stringify(data)}]`);
+      //       resolve();
+      //     }
+      //   });
+      // }
+    });
+  });
+};
+
+const updateLambdaConfig = (lambdaClient, params) => {
+  return Bluebird((resolve, reject) => {
+    lambdaClient.updateFunctionConfiguration(params, (err, data) => {
+      if (err) {
+        console.error(`UpdateFunctionConfiguration Error: ${JSON.stringify(err)}`);
+        reject(err);
+      }
+      else {
+        console.log(`Successfully updated lambda config [FunctionName: ${params.FunctionName}] [Data: ${JSON.stringify(data, null, 2)}]`);
+        resolve();
+      }
+    })
   });
 };
 
