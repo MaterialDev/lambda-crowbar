@@ -142,7 +142,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
                 return retry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
               })
               .catch((err) => {
-                console.error(`Error: ${JSON.stringify(err)}`);
+                console.error(`Error in createLambdaFunction(): ${JSON.stringify(err)}`);
                 throw err;
               });
         }
