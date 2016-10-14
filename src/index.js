@@ -6,14 +6,14 @@ const HttpsProxyAgent = require('https-proxy-agent');
 const Bluebird = require('bluebird');
 const retry = require('bluebird-retry');
 const lodash = require('lodash');
-const backoff = require('backoff');
+// const backoff = require('backoff');
 
 const LAMBDA_RUNTIME = 'nodejs4.3';
-const backoffOptions = {
-  initialDelay: 1000,
-  maxDelay: 60000
-};
-const maxBackoffRetries = 7;
+// const backoffOptions = {
+//   initialDelay: 1000,
+//   maxDelay: 60000
+// };
+// const maxBackoffRetries = 7;
 
 const nodeAwsLambda = () => {
   return this;
@@ -376,7 +376,7 @@ const updateLambdaFunction = (lambdaClient, codePackage, params) => {
 };
 
 const updateLambdaConfig = (lambdaClient, params) => {
-  return Bluebird((resolve, reject) => {
+  return new Bluebird((resolve, reject) => {
     lambdaClient.updateFunctionConfiguration(params, (err, data) => {
       if (err) {
         console.error(`UpdateFunctionConfiguration Error: ${JSON.stringify(err)}`);
@@ -386,7 +386,7 @@ const updateLambdaConfig = (lambdaClient, params) => {
         console.log(`Successfully updated lambda config [FunctionName: ${params.FunctionName}] [Data: ${JSON.stringify(data, null, 2)}]`);
         resolve();
       }
-    })
+    });
   });
 };
 

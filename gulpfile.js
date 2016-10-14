@@ -1,10 +1,13 @@
 const gulp = require('gulp');
+require('git-guppy')(gulp);
 const mocha = require('gulp-mocha');
 const eslint = require('gulp-eslint');
 const sourcemaps = require('gulp-sourcemaps');
 const babel = require('gulp-babel');
 
 gulp.task('default', ['test']);
+
+gulp.task('pre-commit', ['default']);
 
 gulp.task('test', ['build:lint'], () => {
   return gulp.src('test/**/*.js', {read: false})

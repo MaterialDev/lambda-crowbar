@@ -39,11 +39,13 @@
     "eslint": "^3.0.0",
     "eslint-config-airbnb": "^9.0.1",
     "eslint-plugin-import": "^1.10.0",
+    "git-guppy": "^1.2.1",
     "gulp": "^3.9.0",
     "gulp-babel": "^6.1.2",
     "gulp-eslint": "^3.0.0",
     "gulp-mocha": "^2.2.0",
     "gulp-sourcemaps": "^1.6.0",
+    "guppy-pre-commit": "^0.4.0",
     "mocha": "^2.3.4",
     "mocha-teamcity-reporter": "^1.0.0",
     "run-sequence": "^1.1.5"

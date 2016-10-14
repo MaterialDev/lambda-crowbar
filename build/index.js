@@ -8,8 +8,14 @@ var HttpsProxyAgent = require('https-proxy-agent');
 var Bluebird = require('bluebird');
 var retry = require('bluebird-retry');
 var lodash = require('lodash');
+var backoff = require('backoff');
 
 var LAMBDA_RUNTIME = 'nodejs4.3';
+var backoffOptions = {
+  initialDelay: 1000,
+  maxDelay: 60000
+};
+var maxBackoffRetries = 7;
 
 var nodeAwsLambda = function nodeAwsLambda() {
   return undefined;
@@ -136,12 +142,14 @@ var deployLambdaFunction = function deployLambdaFunction(codePackage, config, la
         };
         return retry(localAttachLoggingFunction, { max_tries: 3, interval: 1000, backoff: 500 });
       }).catch(function (err) {
-        console.error('Error: ' + JSON.stringify(err));
+        console.error('Error in createLambdaFunction(): ' + JSON.stringify(err));
         throw err;
       });
     }
     var existingFunctionArn = getResult.functionArn;
     return updateLambdaFunction(lambda, codePackage, params).then(function () {
+      return updateLambdaConfig(lambda, params);
+    }).then(function () {
       return updateEventSource(lambda, config);
     }).then(function () {
       return updatePushSource(lambda, snsClient, config, existingFunctionArn);
@@ -153,11 +161,11 @@ var deployLambdaFunction = function deployLambdaFunction(codePackage, config, la
       };
       return retry(localAttachLoggingFunction, { max_tries: 3, interval: 1000, backoff: 500 });
     }).catch(function (err) {
-      console.error('Error: ' + JSON.stringify(err));
+      console.error('Error in updateLambdaFunction(): ' + JSON.stringify(err));
       throw err;
     });
   }).catch(function (err) {
-    console.error('Error: ' + JSON.stringify(err));
+    console.error('Error in getLambdaFunction(): ' + JSON.stringify(err));
     throw err;
   });
 };
@@ -300,20 +308,79 @@ var updateLambdaFunction = function updateLambdaFunction(lambdaClient, codePacka
       Publish: false
     };
 
-    lambdaClient.updateFunctionCode(updateFunctionParams, function (err) {
+    // const callUpdateFunctionCode = backoff.call(lambdaClient.updateFunctionCode, updateFunctionParams, (updateFunctionCodeErr) => {
+    //   console.log(`Number of callUpdateFunctionCode retries: ${callUpdateFunctionCode.getNumRetries()}`);
+    //
+    //   if (updateFunctionCodeErr) {
+    //     console.error(`UpdateFunction Error: ${JSON.stringify(updateFunctionCodeErr)}`);
+    //     reject(updateFunctionCodeErr);
+    //   }
+    //   else {
+    //     const callUpdateFunctionConfiguration = backoff.call(lambdaClient.updateFunctionConfiguration, params, (updateConfigErr, data) => {
+    //       console.log(`Number of callUpdateFunctionConfiguration retries: ${callUpdateFunctionConfiguration.getNumRetries()}`);
+    //       if (updateConfigErr) {
+    //         console.error(`UpdateFunctionConfiguration Error: ${JSON.stringify(updateConfigErr)}`);
+    //         reject(updateConfigErr);
+    //       }
+    //       else {
+    //         console.log(`Successfully updated lambda. [FunctionName: ${params.FunctionName}] [Data: ${JSON.stringify(data)}]`);
+    //         resolve();
+    //       }
+    //     });
+    //     callUpdateFunctionConfiguration.retryIf(updateConfigErr => {
+    //       return updateConfigErr.code === 'TooManyRequestsException';
+    //     });
+    //     callUpdateFunctionConfiguration.failAfter(maxBackoffRetries);
+    //     callUpdateFunctionConfiguration.setStrategy(new backoff.ExponentialStrategy(backoffOptions));
+    //     callUpdateFunctionConfiguration.start();
+    //   }
+    // });
+    // console.log('setting retryIf');
+    // callUpdateFunctionCode.retryIf(updateFunctionCodeErr => {
+    //   return updateFunctionCodeErr.code === 'TooManyRequestsException';
+    // });
+    // console.log('setting failAfter');
+    // callUpdateFunctionCode.failAfter(maxBackoffRetries);
+    // console.log('setting strategy');
+    // callUpdateFunctionCode.setStrategy(new backoff.ExponentialStrategy(backoffOptions));
+    // console.log('starting call with backoff');
+    // callUpdateFunctionCode.start();
+    // console.log('call started');
+
+    lambdaClient.updateFunctionCode(updateFunctionParams, function (err, data) {
       if (err) {
         console.error('UpdateFunction Error: ' + JSON.stringify(err));
         reject(err);
       } else {
-        lambdaClient.updateFunctionConfiguration(params, function (updateError, data) {
-          if (updateError) {
-            console.error('UpdateFunctionConfiguration Error: ' + JSON.stringify(updateError));
-            reject(updateError);
-          } else {
-            console.log('Successfully updated lambda. [FunctionName: ' + params.FunctionName + '] [Data: ' + JSON.stringify(data) + ']');
-            resolve();
-          }
-        });
+        console.log('Successfully update lambda function code [FunctionName: ' + params.FunctionName + '] [Data: ' + JSON.stringify(data, null, 2) + ']');
+        resolve();
+      }
+      // else {
+      //   lambdaClient.updateFunctionConfiguration(params, (updateError, data) => {
+      //     if (updateError) {
+      //       console.error(`UpdateFunctionConfiguration Error: ${JSON.stringify(updateError)}`);
+      //       // {"message":"Rate exceeded","code":"TooManyRequestsException","time":"2016-10-12T19:00:52.426Z","requestId":"3279a1fc-90ae-11e6-8bfc-5b34443513a7","statusCode":429,"retryable":false,"retryDelay":26.07559027784916}
+      //       reject(updateError);
+      //     }
+      //     else {
+      //       console.log(`Successfully updated lambda. [FunctionName: ${params.FunctionName}] [Data: ${JSON.stringify(data)}]`);
+      //       resolve();
+      //     }
+      //   });
+      // }
+    });
+  });
+};
+
+var updateLambdaConfig = function updateLambdaConfig(lambdaClient, params) {
+  return Bluebird(function (resolve, reject) {
+    lambdaClient.updateFunctionConfiguration(params, function (err, data) {
+      if (err) {
+        console.error('UpdateFunctionConfiguration Error: ' + JSON.stringify(err));
+        reject(err);
+      } else {
+        console.log('Successfully updated lambda config [FunctionName: ' + params.FunctionName + '] [Data: ' + JSON.stringify(data, null, 2) + ']');
+        resolve();
       }
     });
   });
@@ -400,7 +467,7 @@ var updatePushSource = function updatePushSource(lambdaClient, snsClient, config
     return createTopicIfNotExists(snsClient, topicName).then(function () {
       return subscribeLambdaToTopic(lambdaClient, snsClient, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId);
     }).catch(function (err) {
-      console.error('Error: ' + JSON.stringify(err));
+      console.error('Error creating topic: ' + JSON.stringify(err));
       throw err;
     });
   });
