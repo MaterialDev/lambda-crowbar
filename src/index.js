@@ -9,6 +9,10 @@ const lodash = require('lodash');
 const promiseRetry = require('promise-retry');
 
 const LAMBDA_RUNTIME = 'nodejs4.3';
+const promiseRetryOptions = {
+  retries: 8 // 256s (4m 16s)
+};
+const awsCodeToRetry = 'TooManyRequestsException';
 
 const nodeAwsLambda = () => {
   return this;
@@ -208,14 +212,11 @@ const updateLambdaConfig = (lambdaClient, params) => {
 };
 
 const retryUpdateLambdaConfig = (lambdaClient, params) => {
-  const promiseRetryOptions = {
-    retries: 8 // 256s (4m 16s)
-  };
   return promiseRetry(promiseRetryOptions, (retry, number) => {
     console.log(`updateLambdaConfig attempt #${number}`);
     return updateLambdaConfig(lambdaClient, params)
       .catch(err => {
-        if (err.code === 'TooManyRequestsException') {
+        if (err.code === awsCodeToRetry) {
           retry(err);
         }
         throw err;
@@ -490,7 +491,7 @@ const attachLogging = (lambdaClient, cloudWatchLogsClient, config, params) => {
   if (!config.logging) {
     return Promise.resolve('no logging to attach');
   }
-  return addLoggingLambdaPermissionToLambda(lambdaClient, config)
+  return retryAddLoggingLambdaPermissionToLambda(lambdaClient, config)
     .then(() => updateCloudWatchLogsSubscription(cloudWatchLogsClient, config, params))
     .catch(err => {
       const parsedStatusCode = lodash.get(err, 'statusCode', '');
@@ -503,7 +504,7 @@ const attachLogging = (lambdaClient, cloudWatchLogsClient, config, params) => {
 };
 
 const addLoggingLambdaPermissionToLambda = (lambdaClient, config) => {
-  return new Bluebird((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     // Need to add the permission once, but if it fails the second time no worries.
     const permissionParams = {
       Action: 'lambda:InvokeFunction',
@@ -527,6 +528,19 @@ const addLoggingLambdaPermissionToLambda = (lambdaClient, config) => {
         resolve();
       }
     });
+  });
+};
+
+const retryAddLoggingLambdaPermissionToLambda = (lambdaClient, config) => {
+  return promiseRetry(promiseRetryOptions, (retry, number) => {
+    console.log(`addLoggingLambdaPermissionToLambda attempt #${number}`);
+    return addLoggingLambdaPermissionToLambda(lambdaClient, config)
+      .catch(err => {
+        if (err.code === awsCodeToRetry) {
+          retry(err);
+        }
+        throw err;
+      });
   });
 };
 
