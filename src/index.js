@@ -91,7 +91,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
       }
       const existingFunctionArn = getResult.functionArn;
       return updateLambdaFunction(lambda, codePackage, params)
-        .then(() => retryUpdateLambdaConfig(lambda, params))
+        .then(() => retryAwsCall(updateLambdaConfig, 'updateLambdaConfig', lambda, params))
         .then(() => updateEventSource(lambda, config))
         .then(() => updatePushSource(lambda, snsClient, config, existingFunctionArn))
         .then(() => publishLambdaVersion(lambda, config))
@@ -210,19 +210,19 @@ const updateLambdaConfig = (lambdaClient, params) => {
     });
   });
 };
-
-const retryUpdateLambdaConfig = (lambdaClient, params) => {
-  return promiseRetry(promiseRetryOptions, (retry, number) => {
-    console.log(`updateLambdaConfig attempt #${number}`);
-    return updateLambdaConfig(lambdaClient, params)
-      .catch(err => {
-        if (err.code === awsCodeToRetry) {
-          retry(err);
-        }
-        throw err;
-      });
-  });
-};
+//
+// const retryUpdateLambdaConfig = (lambdaClient, params) => {
+//   return promiseRetry(promiseRetryOptions, (retry, number) => {
+//     console.log(`updateLambdaConfig attempt #${number}`);
+//     return updateLambdaConfig(lambdaClient, params)
+//       .catch(err => {
+//         if (err.code === awsCodeToRetry) {
+//           retry(err);
+//         }
+//         throw err;
+//       });
+//   });
+// };
 
 /**
  *
@@ -421,7 +421,7 @@ const subscribeLambdaToTopic = (lambdaClient, snsClient, config, functionArn, to
 };
 
 const publishLambdaVersion = (lambdaClient, config) => {
-  return retryPublishVersion(lambdaClient, config)
+  return retryAwsCall(publishVersion, 'publishVersion', lambdaClient, config)
     .then(() => listVersionsByFunction(lambdaClient, config))
     .then((listVersionsResult) => {
       const versionsToDelete = [];
@@ -453,10 +453,23 @@ const publishVersion = (lambdaClient, config) => {
   });
 };
 
-const retryPublishVersion = (lambdaClient, config) => {
+// const retryPublishVersion = (lambdaClient, config) => {
+//   return promiseRetry(promiseRetryOptions, (retry, number) => {
+//     console.log(`publishVersion attempt #${number}`);
+//     return publishVersion(lambdaClient, config)
+//       .catch(err => {
+//         if (err.code === awsCodeToRetry) {
+//           retry(err);
+//         }
+//         throw err;
+//       });
+//   });
+// };
+
+const retryAwsCall = (functionToInvoke, functionName, lambdaClient, params) => {
   return promiseRetry(promiseRetryOptions, (retry, number) => {
-    console.log(`publishVersion attempt #${number}`);
-    return publishVersion(lambdaClient, config)
+    console.log(`${functionName} attempt #${number}`);
+    return functionToInvoke(lambdaClient, params)
       .catch(err => {
         if (err.code === awsCodeToRetry) {
           retry(err);
@@ -504,7 +517,7 @@ const attachLogging = (lambdaClient, cloudWatchLogsClient, config, params) => {
   if (!config.logging) {
     return Promise.resolve('no logging to attach');
   }
-  return retryAddLoggingLambdaPermissionToLambda(lambdaClient, config)
+  return retryAwsCall(addLoggingLambdaPermissionToLambda, 'addLoggingLambdaPermissionToLambda', lambdaClient, config)
     .then(() => updateCloudWatchLogsSubscription(cloudWatchLogsClient, config, params))
     .catch(err => {
       const parsedStatusCode = lodash.get(err, 'statusCode', '');
@@ -544,18 +557,18 @@ const addLoggingLambdaPermissionToLambda = (lambdaClient, config) => {
   });
 };
 
-const retryAddLoggingLambdaPermissionToLambda = (lambdaClient, config) => {
-  return promiseRetry(promiseRetryOptions, (retry, number) => {
-    console.log(`addLoggingLambdaPermissionToLambda attempt #${number}`);
-    return addLoggingLambdaPermissionToLambda(lambdaClient, config)
-      .catch(err => {
-        if (err.code === awsCodeToRetry) {
-          retry(err);
-        }
-        throw err;
-      });
-  });
-};
+// const retryAddLoggingLambdaPermissionToLambda = (lambdaClient, config) => {
+//   return promiseRetry(promiseRetryOptions, (retry, number) => {
+//     console.log(`addLoggingLambdaPermissionToLambda attempt #${number}`);
+//     return addLoggingLambdaPermissionToLambda(lambdaClient, config)
+//       .catch(err => {
+//         if (err.code === awsCodeToRetry) {
+//           retry(err);
+//         }
+//         throw err;
+//       });
+//   });
+// };
 
 const updateCloudWatchLogsSubscription = (cloudWatchLogsClient, config, params) => {
   return new Bluebird((resolve, reject) => {
