@@ -421,7 +421,7 @@ const subscribeLambdaToTopic = (lambdaClient, snsClient, config, functionArn, to
 };
 
 const publishLambdaVersion = (lambdaClient, config) => {
-  return publishVersion(lambdaClient, config)
+  return retryPublishVersion(lambdaClient, config)
     .then(() => listVersionsByFunction(lambdaClient, config))
     .then((listVersionsResult) => {
       const versionsToDelete = [];
@@ -437,7 +437,7 @@ const publishLambdaVersion = (lambdaClient, config) => {
 };
 
 const publishVersion = (lambdaClient, config) => {
-  return new Bluebird((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const publishVersionParams = {FunctionName: config.functionName};
 
     lambdaClient.publishVersion(publishVersionParams, (err, data) => {
@@ -450,6 +450,19 @@ const publishVersion = (lambdaClient, config) => {
         resolve(data);
       }
     });
+  });
+};
+
+const retryPublishVersion = (lambdaClient, config) => {
+  return promiseRetry(promiseRetryOptions, (retry, number) => {
+    console.log(`publishVersion attempt #${number}`);
+    return publishVersion(lambdaClient, config)
+      .catch(err => {
+        if (err.code === awsCodeToRetry) {
+          retry(err);
+        }
+        throw err;
+      });
   });
 };
 
@@ -469,7 +482,7 @@ const listVersionsByFunction = (lambdaClient, config) => {
 };
 
 const deleteLambdaFunctionVersion = (lambdaClient, config, version) => {
-  return new Bluebird((resolve) => {
+  return new Promise((resolve) => {
     const deleteFunctionParams = {
       FunctionName: config.functionName,
       Qualifier: version
