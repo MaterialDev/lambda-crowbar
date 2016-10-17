@@ -9,10 +9,6 @@ const lodash = require('lodash');
 const promiseRetry = require('promise-retry');
 
 const LAMBDA_RUNTIME = 'nodejs4.3';
-const promiseRetryOptions = {
-  retries: 8 // 256s (4m 16s)
-};
-const awsCodeToRetry = 'TooManyRequestsException';
 
 const nodeAwsLambda = () => {
   return this;
@@ -210,19 +206,6 @@ const updateLambdaConfig = (lambdaClient, params) => {
     });
   });
 };
-//
-// const retryUpdateLambdaConfig = (lambdaClient, params) => {
-//   return promiseRetry(promiseRetryOptions, (retry, number) => {
-//     console.log(`updateLambdaConfig attempt #${number}`);
-//     return updateLambdaConfig(lambdaClient, params)
-//       .catch(err => {
-//         if (err.code === awsCodeToRetry) {
-//           retry(err);
-//         }
-//         throw err;
-//       });
-//   });
-// };
 
 /**
  *
@@ -453,25 +436,16 @@ const publishVersion = (lambdaClient, config) => {
   });
 };
 
-// const retryPublishVersion = (lambdaClient, config) => {
-//   return promiseRetry(promiseRetryOptions, (retry, number) => {
-//     console.log(`publishVersion attempt #${number}`);
-//     return publishVersion(lambdaClient, config)
-//       .catch(err => {
-//         if (err.code === awsCodeToRetry) {
-//           retry(err);
-//         }
-//         throw err;
-//       });
-//   });
-// };
-
 const retryAwsCall = (functionToInvoke, functionName, lambdaClient, params) => {
+  const promiseRetryOptions = {
+    retries: 8 // 256s (4m 16s)
+  };
+
   return promiseRetry(promiseRetryOptions, (retry, number) => {
     console.log(`${functionName} attempt #${number}`);
     return functionToInvoke(lambdaClient, params)
       .catch(err => {
-        if (err.code === awsCodeToRetry) {
+        if (err.code === 'TooManyRequestsException') {
           retry(err);
         }
         throw err;
@@ -557,19 +531,6 @@ const addLoggingLambdaPermissionToLambda = (lambdaClient, config) => {
     });
   });
 };
-
-// const retryAddLoggingLambdaPermissionToLambda = (lambdaClient, config) => {
-//   return promiseRetry(promiseRetryOptions, (retry, number) => {
-//     console.log(`addLoggingLambdaPermissionToLambda attempt #${number}`);
-//     return addLoggingLambdaPermissionToLambda(lambdaClient, config)
-//       .catch(err => {
-//         if (err.code === awsCodeToRetry) {
-//           retry(err);
-//         }
-//         throw err;
-//       });
-//   });
-// };
 
 const updateCloudWatchLogsSubscription = (cloudWatchLogsClient, config, params) => {
   return new Bluebird((resolve, reject) => {
