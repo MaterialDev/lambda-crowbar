@@ -69,7 +69,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
     Runtime: config.runtime || LAMBDA_RUNTIME
   };
 
-  return getLambdaFunction(lambda, params.FunctionName)
+  return retryAwsCall(getLambdaFunction, 'getLambdaFunction', lambda, params.FunctionName)
     .then((getResult) => {
       if (!getResult.lambdaExists) {
         return createLambdaFunction(lambda, codePackage, params)
@@ -92,9 +92,9 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
       const existingFunctionArn = getResult.functionArn;
       return updateLambdaFunction(lambda, codePackage, params)
         .then(() => retryAwsCall(updateLambdaConfig, 'updateLambdaConfig', lambda, params))
-        .then(() => updateEventSource(lambda, config))
+        .then(() => retryAwsCall(updateEventSource, 'updateEventSource', lambda, config))
         .then(() => updatePushSource(lambda, snsClient, config, existingFunctionArn))
-        .then(() => publishLambdaVersion(lambda, config))
+        .then(() => retryAwsCall(publishLambdaVersion, 'publishLambdaVersion', lambda, config))
         .then(() => {
           const localAttachLoggingFunction = () => {
             return attachLogging(lambda, cloudWatchLogsClient, config, params);
@@ -113,7 +113,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
 };
 
 const getLambdaFunction = (lambdaClient, functionName) => {
-  return new Bluebird((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const getFunctionParams = {
       FunctionName: functionName
     };
@@ -422,7 +422,7 @@ const subscribeLambdaToTopic = (lambdaClient, snsClient, config, functionArn, to
 
 const publishLambdaVersion = (lambdaClient, config) => {
   return retryAwsCall(publishVersion, 'publishVersion', lambdaClient, config)
-    .then(() => listVersionsByFunction(lambdaClient, config))
+    .then(() => retryAwsCall(listVersionsByFunction, 'listVersionsByFunction', lambdaClient, config))
     .then((listVersionsResult) => {
       const versionsToDelete = [];
       const last = listVersionsResult.Versions[listVersionsResult.Versions.length - 1].Version;
@@ -480,7 +480,7 @@ const retryAwsCall = (functionToInvoke, functionName, lambdaClient, params) => {
 };
 
 const listVersionsByFunction = (lambdaClient, config) => {
-  return new Bluebird((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const listVersionsParams = {FunctionName: config.functionName};
     lambdaClient.listVersionsByFunction(listVersionsParams, (listErr, data) => {
       if (listErr) {
@@ -501,6 +501,7 @@ const deleteLambdaFunctionVersion = (lambdaClient, config, version) => {
       Qualifier: version
     };
 
+    // TODO: should this not retry on TooManyRequests error? - SRO
     lambdaClient.deleteFunction(deleteFunctionParams, (err) => {
       if (err) {
         console.error(`Failed to delete lambda version. [FunctionName: ${config.functionName}] [Version: ${version}]`);
