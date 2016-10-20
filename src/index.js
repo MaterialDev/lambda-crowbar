@@ -15,15 +15,17 @@ const nodeAwsLambda = () => {
   return this;
 };
 
-nodeAwsLambda.prototype.deploy = (codePackage, config, lambdaClient) => {
-  return deployLambdaFunction(codePackage, config, lambdaClient);
-};
-
-nodeAwsLambda.prototype.deploy2 = (deploymentParams) => {
+nodeAwsLambda.prototype.deploy = (deploymentParams) => {
+  if (!lodash.has('zipFileName')) {
+    throw new Error('deploymentParams must have field \'zipFileName\'');
+  }
   const lambdaPackageZipFilePath = `./dist/${deploymentParams.zipFileName}`;
+  if (!lodash.has('environment')) {
+    throw new Error('deploymentParams must have field \'environment\'');
+  }
+  const deployEnvironment = deploymentParams.environment.toLocaleUpperCase();
   const lambdaConfig = require(path.join(process.cwd(), './lambdaConfig')); //eslint-disable-line
   const lambdasToDeploy = Object.keys(lambdaConfig);
-  const deployEnvironment = deploymentParams.environment.toLocaleUpperCase();
   console.log(`Lambdas to deploy in ${deployEnvironment}: ${JSON.stringify(lambdasToDeploy, null, 2)}`);
 
   const envLambdas = [];
