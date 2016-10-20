@@ -7,6 +7,7 @@ const Bluebird = require('bluebird');
 const bbRetry = require('bluebird-retry');
 const lodash = require('lodash');
 const promiseRetry = require('promise-retry');
+const path = require('path');
 
 const LAMBDA_RUNTIME = 'nodejs4.3';
 
@@ -16,6 +17,24 @@ const nodeAwsLambda = () => {
 
 nodeAwsLambda.prototype.deploy = (codePackage, config, lambdaClient) => {
   return deployLambdaFunction(codePackage, config, lambdaClient);
+};
+
+nodeAwsLambda.prototype.deploy2 = (deploymentParams) => {
+  const lambdaPackageZipFilePath = `./dist/${deploymentParams.zipFileName}`;
+  const lambdaConfig = require(path.join(process.cwd(), './lambdaConfig')); //eslint-disable-line
+  const lambdasToDeploy = Object.keys(lambdaConfig);
+  const deployEnvironment = deploymentParams.environment.toLocaleUpperCase();
+  console.log(`Lambdas to deploy in ${deployEnvironment}: ${JSON.stringify(lambdasToDeploy, null, 2)}`);
+
+  const envLambdas = [];
+  for (const lambdaName of lambdasToDeploy) {
+    const lambda = lambdaConfig[lambdaName];
+    if (lambda.deploymentEnvironment.toLocaleUpperCase() === deployEnvironment) {
+      envLambdas.push(deployLambdaFunction(lambdaPackageZipFilePath, lambda));
+    }
+  }
+
+  return Promise.all(envLambdas);
 };
 
 const deployLambdaFunction = (codePackage, config, lambdaClient) => {
