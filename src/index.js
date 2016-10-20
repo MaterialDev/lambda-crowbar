@@ -16,11 +16,11 @@ const nodeAwsLambda = () => {
 };
 
 nodeAwsLambda.prototype.deploy = (deploymentParams) => {
-  if (!lodash.has('zipFileName')) {
+  if (!lodash.has(deploymentParams, 'zipFileName')) {
     throw new Error('deploymentParams must have field \'zipFileName\'');
   }
   const lambdaPackageZipFilePath = `./dist/${deploymentParams.zipFileName}`;
-  if (!lodash.has('environment')) {
+  if (!lodash.has(deploymentParams, 'environment')) {
     throw new Error('deploymentParams must have field \'environment\'');
   }
   const deployEnvironment = deploymentParams.environment.toLocaleUpperCase();

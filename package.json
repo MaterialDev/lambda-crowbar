@@ -1,6 +1,6 @@
 {
   "name": "@material-dev/node-aws-lambda",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "A module help you automate AWS lambda function deployment. Forked from node-aws-lambda",
   "main": "build/index.js",
   "scripts": {
