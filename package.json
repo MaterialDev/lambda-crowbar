@@ -52,6 +52,6 @@
     "run-sequence": "^1.1.5"
   },
   "engines": {
-    "node": ">6.3.0"
+    "node": "6.3.0"
   }
 }
