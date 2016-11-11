@@ -1,0 +1,8 @@
+src/
+test/
+gulpfile.js
+README.md
+wallaby.js
+.npmrc
+.babelrc
+.editorconfig
