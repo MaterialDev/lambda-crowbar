@@ -81,7 +81,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
     Description: config.description,
     Handler: config.handler,
     Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution',
-    Timeout: config.timeout || 10,
+    Timeout: config.timeout || 30,
     MemorySize: config.memorySize || 128,
     Runtime: config.runtime || LAMBDA_RUNTIME
   };
