@@ -39,6 +39,74 @@ nodeAwsLambda.prototype.deploy = (deploymentParams) => {
   return Promise.all(envLambdas);
 };
 
+nodeAwsLambda.prototype.schedule = (scheduleParams) => {
+  const cloudwatchevents = new AWS.CloudWatchEvents();
+  const lambda = new AWS.Lambda();
+
+  let ruleArn;
+
+  return cloudwatchevents.putRule({
+    Name: scheduleParams.ruleName,
+    Description: scheduleParams.ruleDescription,
+    ScheduleExpression: scheduleParams.ruleScheduleExpression
+  })
+    .promise()
+    .then((data) => {
+      console.log(`putRule: data: ${JSON.stringify(data)}`);
+      ruleArn = data.RuleArn;
+    })
+    .catch((err) => {
+      console.log(`putRule: err: ${err}, ${err.stack}, ${JSON.stringify(err, ['message'])}`);
+    })
+    .then(() => {
+      return lambda.removePermission({
+        FunctionName: scheduleParams.lambdaFunctionName,
+        StatementId: scheduleParams.permissionStatementId
+      })
+        .promise();
+    })
+    .then((data) => {
+      console.log(`removePermission: data: ${JSON.stringify(data)}`);
+    })
+    .catch((err) => {
+      console.log(`removePermission: err: ${err}, ${err.stack}, ${JSON.stringify(err, ['message'])}`);
+    })
+    .then(() => {
+      return lambda.addPermission({
+        FunctionName: scheduleParams.lambdaFunctionName,
+        StatementId: scheduleParams.permissionStatementId,
+        Action: 'lambda:InvokeFunction',
+        Principal: 'events.amazonaws.com',
+        SourceArn: ruleArn
+      })
+        .promise();
+    })
+    .then((data) => {
+      console.log(`addPermission: data: ${JSON.stringify(data)}`);
+    })
+    .catch((err) => {
+      console.log(`addPermission: err: ${err}, ${err.stack}, ${JSON.stringify(err, ['message'])}`);
+    })
+    .then(() => {
+      return cloudwatchevents.putTargets({
+        Rule: scheduleParams.ruleName,
+        Targets: [
+          {
+            Id: '1',
+            Arn: `arn:aws:lambda:us-east-1:677310820158:function:${scheduleParams.lambdaFunctionName}`
+          }
+        ]
+      })
+        .promise();
+    })
+    .then((data) => {
+      console.log(`putTargets: data: ${JSON.stringify(data)}`);
+    })
+    .catch((err) => {
+      console.log(`putTargets: err: ${err}, ${err.stack}, ${JSON.stringify(err, ['message'])}`);
+    });
+};
+
 const deployLambdaFunction = (codePackage, config, lambdaClient) => {
   let functionArn = '';
   let lambda = lambdaClient;
