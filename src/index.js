@@ -9,6 +9,7 @@ const lodash = require('lodash');
 const promiseRetry = require('promise-retry');
 const path = require('path');
 
+AWS.config.update({region: 'us-east-1'});
 const LAMBDA_RUNTIME = 'nodejs4.3';
 
 const nodeAwsLambda = () => {
