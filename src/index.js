@@ -105,6 +105,7 @@ nodeAwsLambda.prototype.schedule = (scheduleParams) => {
     })
     .catch((err) => {
       console.log(`putTargets: err: ${err}, ${err.stack}, ${JSON.stringify(err, ['message'])}`);
+      throw err;
     });
 };
 
