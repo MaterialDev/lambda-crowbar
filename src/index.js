@@ -146,20 +146,38 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
     secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
   });
 
-  const params = {
-    FunctionName: config.functionName,
-    Description: config.description,
-    Handler: config.handler,
-    Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution',
-    Timeout: config.timeout || 30,
-    MemorySize: config.memorySize || 128,
-    Runtime: config.runtime || LAMBDA_RUNTIME
-  };
+  const iamClient = new AWS.IAM();
+
+  let params;
+  if (config.role && config.policies) {
+    params = {
+      FunctionName: config.functionName,
+      Description: config.description,
+      Handler: config.handler,
+      Role: config.role || 'lambda_basic_execution',
+      Policies: config.polices,
+      Timeout: config.timeout || 30,
+      MemorySize: config.memorySize || 128,
+      Runtime: config.runtime || LAMBDA_RUNTIME
+    };
+  }
+  else {
+    params = {
+      FunctionName: config.functionName,
+      Description: config.description,
+      Handler: config.handler,
+      Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution',
+      Timeout: config.timeout || 30,
+      MemorySize: config.memorySize || 128,
+      Runtime: config.runtime || LAMBDA_RUNTIME
+    };
+  }
 
   return retryAwsCall(getLambdaFunction, 'getLambdaFunction', lambda, params.FunctionName)
     .then((getResult) => {
       if (!getResult.lambdaExists) {
-        return createLambdaFunction(lambda, codePackage, params)
+        return createOrUpdateIAMRole(iamClient, params)
+          .then(() => createLambdaFunction(lambda, codePackage, params))
           .then((createFunctionResult) => {
             functionArn = createFunctionResult.functionArn;
           })
@@ -177,7 +195,8 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
           });
       }
       const existingFunctionArn = getResult.functionArn;
-      return updateLambdaFunction(lambda, codePackage, params)
+      return createOrUpdateIAMRole(iamClient, params)
+        .then(() => updateLambdaFunction(lambda, codePackage, params))
         .then(() => retryAwsCall(updateLambdaConfig, 'updateLambdaConfig', lambda, params))
         .then(() => retryAwsCall(updateEventSource, 'updateEventSource', lambda, config))
         .then(() => updatePushSource(lambda, snsClient, config, existingFunctionArn))
@@ -220,6 +239,102 @@ const getLambdaFunction = (lambdaClient, functionName) => {
           lambdaExists: true,
           functionArn: data.Configuration.FunctionArn
         });
+      }
+    });
+  });
+};
+
+const getIAMRole = (iamClient, roleName) => {
+  return new Bluebird((resolve, reject) => {
+    console.log(`Getting IAM Role. [Role Name: ${roleName}]`);
+    const localParams = {
+      RoleName: roleName
+    };
+    iamClient.getRole(localParams, (err, data) => {
+      if (err) {
+        console.error(`Getting IAM Role failed. Check your iam permissions. [Error: ${JSON.stringify(err)}]`);
+        reject(err);
+      }
+      else {
+        console.log(`Retrieved IAM Role successfully. [Data: ${JSON.stringify(data)}]`);
+        resolve(data);
+      }
+    });
+  });
+};
+
+const createOrUpdateIAMRole = (iamClient, params) => {
+  if (params.Role && params.Policies) {
+    const roleName = params.Role;
+    const policies = params.Policies;
+    return getIAMRole(iamClient, roleName)
+      .catch(err => {
+        if (err.message === 'NoSuchEntity') {
+          return createIAMRole(iamClient, roleName);
+        }
+        throw err;
+      })
+      .then(role => {
+        return policies.mapSeries(policies, policy => {
+          const localParams = {
+            PolicyDocument: policy.PolicyDocument,
+            PolicyName: policy.PolicyName,
+            RoleName: role.RoleName
+          };
+          return putIAMRolePolicy(iamClient, localParams);
+        });
+      });
+  }
+  return params;
+};
+
+const createIAMRole = (iamClient, roleName) => {
+  return new Bluebird((resolve, reject) => {
+    console.log(`Creating IAM Role. [Role Name: ${roleName}]`);
+    const localParams = {
+      AssumeRolePolicyDocument: {
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Effect: 'Allow',
+            Principal: {
+              Service: 'lambda.amazonaws.com'
+            },
+            Action: 'sts:AssumeRole'
+          }
+        ]
+      },
+      RoleName: roleName
+    };
+    iamClient.createRole(localParams, (err, data) => {
+      if (err) {
+        console.error(`Create IAM Role failed. Check your iam permissions. [Error: ${JSON.stringify(err)}]`);
+        reject(err);
+      }
+      else {
+        console.log(`Created IAM Role successfully. [Data: ${JSON.stringify(data)}]`);
+        resolve(data);
+      }
+    });
+  });
+};
+
+const putIAMRolePolicy = (iamClient, params) => {
+  return new Bluebird((resolve, reject) => {
+    console.log(`Creating IAM Role. [Role Name: ${params.RoleName}]`);
+    const localParams = {
+      PolicyDocument: params.PolicyDocument,
+      PolicyName: params.PolicyName,
+      RoleName: params.RoleName
+    };
+    iamClient.putRolePolicy(localParams, (err, data) => {
+      if (err) {
+        console.error(`Creating Role Policy Failed. [Error: ${JSON.stringify(err)}]`);
+        reject(err);
+      }
+      else {
+        console.log(`Role Policy created successfully. [Data: ${JSON.stringify(data)}]`);
+        resolve(data);
       }
     });
   });
