@@ -38,7 +38,7 @@ nodeAwsLambda.prototype.deploy = (deploymentParams) => {
     }
   }
 
-  return Promise.all(envLambdas);
+  return Promise.mapSeries(envLambdas);
 };
 
 nodeAwsLambda.prototype.schedule = (scheduleParams) => {
