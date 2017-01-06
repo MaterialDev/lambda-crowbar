@@ -277,7 +277,12 @@ const getIAMRole = (roleName) => {
   const localParams = {
     RoleName: roleName
   };
-  return iamClient.getRole(localParams).promise();
+  return iamClient.getRole(localParams).promise()
+    .then(data => {
+      console.log('getRoleResult');
+      console.log(JSON.stringify(data, null, 2));
+      return data;
+    });
 };
 
 const createOrUpdateIAMRole = (iamClient, params) => {
@@ -332,7 +337,12 @@ const createIAMRole = (iamClient, roleName) => {
     }),
     RoleName: roleName
   };
-  return iamClient.createRole(localParams).promise();
+  return iamClient.createRole(localParams).promise()
+    .then(data => {
+      console.log('createRoleResult');
+      console.log(JSON.stringify(data, null, 2));
+      return data;
+    });
 };
 
 const putIAMRolePolicy = (iamClient, params) => {
@@ -342,7 +352,12 @@ const putIAMRolePolicy = (iamClient, params) => {
     PolicyName: params.PolicyName,
     RoleName: params.RoleName
   };
-  return iamClient.putRolePolicy(localParams).promise();
+  return iamClient.putRolePolicy(localParams).promise()
+    .then(data => {
+      console.log('putRoleResult');
+      console.log(JSON.stringify(data, null, 2));
+      return data;
+    });
 };
 
 /**
