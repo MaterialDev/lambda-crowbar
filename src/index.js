@@ -278,7 +278,7 @@ const getIAMRole = (roleName) => {
     .then(data => {
       console.log('getRoleResult');
       console.log(JSON.stringify(data, null, 2));
-      return data;
+      return data.Role;
     });
 };
 
@@ -339,7 +339,7 @@ const createIAMRole = (roleName) => {
     .then(data => {
       console.log('createRoleResult');
       console.log(JSON.stringify(data, null, 2));
-      return data;
+      return data.Role;
     });
 };
 
