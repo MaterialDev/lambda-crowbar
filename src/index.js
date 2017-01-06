@@ -271,23 +271,13 @@ const getLambdaFunction = (lambdaClient, functionName) => {
   });
 };
 
-const getIAMRole = (iamClient, roleName) => {
-  return new Promise((resolve, reject) => {
-    console.log(`Getting IAM Role. [Role Name: ${roleName}]`);
-    const localParams = {
-      RoleName: roleName
-    };
-    iamClient.getRole(localParams, (err, data) => {
-      if (err) {
-        console.error(`Getting IAM Role failed. Check your iam permissions. [Error: ${JSON.stringify(err)}]`);
-        reject(err);
-      }
-      else {
-        console.log(`Retrieved IAM Role successfully. [Data: ${JSON.stringify(data)}]`);
-        resolve(data.Role);
-      }
-    });
-  });
+const getIAMRole = (roleName) => {
+  const iamClient = new AWS.IAM();
+  console.log(`Getting IAM Role. [Role Name: ${roleName}]`);
+  const localParams = {
+    RoleName: roleName
+  };
+  return iamClient.getRole(localParams).promise();
 };
 
 const createOrUpdateIAMRole = (iamClient, params) => {
@@ -299,10 +289,10 @@ const createOrUpdateIAMRole = (iamClient, params) => {
   const roleName = params.Role;
   const policies = params.Policies;
   let role;
-  return getIAMRole(iamClient, roleName)
+  return getIAMRole(roleName)
     .catch(err => {
       if (err.code === 'NoSuchEntity') {
-        return createIAMRole(iamClient, roleName);
+        return createIAMRole(roleName);
       }
       throw err;
     })
@@ -326,55 +316,33 @@ const createOrUpdateIAMRole = (iamClient, params) => {
 };
 
 const createIAMRole = (iamClient, roleName) => {
-  return new Promise((resolve, reject) => {
-    console.log(`Creating IAM Role. [Role Name: ${roleName}]`);
-    const localParams = {
-      AssumeRolePolicyDocument: urlcodeJson.encode({
-        Version: '2012-10-17',
-        Statement: [
-          {
-            Effect: 'Allow',
-            Principal: {
-              Service: 'lambda.amazonaws.com'
-            },
-            Action: 'sts:AssumeRole'
-          }
-        ]
-      }),
-      RoleName: roleName
-    };
-    iamClient.createRole(localParams, (err, data) => {
-      if (err) {
-        console.error(`Create IAM Role failed. Check your iam permissions. [Error: ${JSON.stringify(err)}]`);
-        reject(err);
-      }
-      else {
-        console.log(`Created IAM Role successfully. [Data: ${JSON.stringify(data)}]`);
-        resolve(data);
-      }
-    });
-  });
+  console.log(`Creating IAM Role. [Role Name: ${roleName}]`);
+  const localParams = {
+    AssumeRolePolicyDocument: urlcodeJson.encode({
+      Version: '2012-10-17',
+      Statement: [
+        {
+          Effect: 'Allow',
+          Principal: {
+            Service: 'lambda.amazonaws.com'
+          },
+          Action: 'sts:AssumeRole'
+        }
+      ]
+    }),
+    RoleName: roleName
+  };
+  return iamClient.createRole(localParams).promise();
 };
 
 const putIAMRolePolicy = (iamClient, params) => {
-  return new Promise((resolve, reject) => {
-    console.log(`Creating IAM Role. [Role Name: ${params.RoleName}]`);
-    const localParams = {
-      PolicyDocument: JSON.stringify(params.PolicyDocument),
-      PolicyName: params.PolicyName,
-      RoleName: params.RoleName
-    };
-    iamClient.putRolePolicy(localParams, (err, data) => {
-      if (err) {
-        console.error(`Creating Role Policy Failed. [Error: ${JSON.stringify(err)}]`);
-        reject(err);
-      }
-      else {
-        console.log(`Role Policy created successfully. [Data: ${JSON.stringify(data)}]`);
-        resolve(data);
-      }
-    });
-  });
+  console.log(`Creating IAM Role. [Role Name: ${params.RoleName}]`);
+  const localParams = {
+    PolicyDocument: JSON.stringify(params.PolicyDocument),
+    PolicyName: params.PolicyName,
+    RoleName: params.RoleName
+  };
+  return iamClient.putRolePolicy(localParams).promise();
 };
 
 /**
