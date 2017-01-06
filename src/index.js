@@ -356,7 +356,7 @@ const putIAMRolePolicy = (iamClient, params) => {
   return new Promise((resolve, reject) => {
     console.log(`Creating IAM Role. [Role Name: ${params.RoleName}]`);
     const localParams = {
-      PolicyDocument: params.PolicyDocument.toString(),
+      PolicyDocument: JSON.stringify(params.PolicyDocument),
       PolicyName: params.PolicyName,
       RoleName: params.RoleName
     };
