@@ -38,7 +38,7 @@ nodeAwsLambda.prototype.deploy = (deploymentParams) => {
     }
   }
 
-  return Bluebird.mapSeries(envLambdas);
+  return Promise.map(envLambdas);
 };
 
 nodeAwsLambda.prototype.schedule = (scheduleParams) => {
@@ -351,7 +351,7 @@ const putIAMRolePolicy = (iamClient, params) => {
   return new Bluebird((resolve, reject) => {
     console.log(`Creating IAM Role. [Role Name: ${params.RoleName}]`);
     const localParams = {
-      PolicyDocument: params.PolicyDocument,
+      PolicyDocument: params.PolicyDocument.toString(),
       PolicyName: params.PolicyName,
       RoleName: params.RoleName
     };
