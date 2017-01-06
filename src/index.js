@@ -319,18 +319,18 @@ const createIAMRole = (iamClient, roleName) => {
   return new Bluebird((resolve, reject) => {
     console.log(`Creating IAM Role. [Role Name: ${roleName}]`);
     const localParams = {
-      AssumeRolePolicyDocument: {
-        Version: '2012-10-17',
-        Statement: [
+      AssumeRolePolicyDocument: `{
+        "Version": "2012-10-17",
+        "Statement": [
           {
-            Effect: 'Allow',
-            Principal: {
-              Service: 'lambda.amazonaws.com'
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "lambda.amazonaws.com"
             },
-            Action: 'sts:AssumeRole'
+            "Action": "sts:AssumeRole"
           }
         ]
-      },
+      }`,
       RoleName: roleName
     };
     iamClient.createRole(localParams, (err, data) => {
