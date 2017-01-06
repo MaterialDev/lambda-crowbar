@@ -1,6 +1,6 @@
 {
   "name": "@material-dev/node-aws-lambda",
-  "version": "4.1.17",
+  "version": "4.1.18",
   "description": "A module help you automate AWS lambda function deployment. Forked from node-aws-lambda",
   "main": "build/index.js",
   "scripts": {
@@ -29,7 +29,8 @@
     "bluebird-retry": "^0.6.1",
     "https-proxy-agent": "^1.0.0",
     "lodash": "^4.6.1",
-    "promise-retry": "^1.1.1"
+    "promise-retry": "^1.1.1",
+    "urlcode-json": "0.0.5"
   },
   "devDependencies": {
     "babel": "^6.5.2",
