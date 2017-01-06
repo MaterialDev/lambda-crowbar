@@ -209,6 +209,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
             MemorySize: config.memorySize || 128,
             Runtime: config.runtime || LAMBDA_RUNTIME
           };
+          console.log(JSON.stringify(params, null, 2));
         })
         .then(() => updateLambdaFunction(lambda, codePackage, params))
         .then(() => retryAwsCall(updateLambdaConfig, 'updateLambdaConfig', lambda, params))
