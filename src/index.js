@@ -299,6 +299,7 @@ const createOrUpdateIAMRole = (iamClient, params) => {
       console.log(JSON.stringify(roleResponse, null, 2));
       role = roleResponse;
       return policies.mapSeries(policies, policy => {
+        console.log(JSON.stringify(policy, null, 2));
         const localParams = {
           PolicyDocument: policy.PolicyDocument,
           PolicyName: policy.PolicyName,
