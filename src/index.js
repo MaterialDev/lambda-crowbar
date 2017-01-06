@@ -184,7 +184,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
               FunctionName: config.functionName,
               Description: config.description,
               Handler: config.handler,
-              Role: roleResponse.Arn,
+              Role: roleResponse.Role.Arn,
               Timeout: config.timeout || 30,
               MemorySize: config.memorySize || 128,
               Runtime: config.runtime || LAMBDA_RUNTIME
@@ -292,7 +292,7 @@ const createOrUpdateIAMRole = (iamClient, params) => {
   console.log('params');
   console.log(JSON.stringify(params, null, 2));
   if (params.Role && !params.Policies) {
-    return Promise.resolve({Arn: params.Role});
+    return Promise.resolve({Role: {Arn: params.Role}});
   }
   const roleName = params.Role;
   const policies = params.Policies;
