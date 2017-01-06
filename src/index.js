@@ -158,7 +158,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
   }
   else {
     iamParams = {
-      Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution'
+      Role: `arn:aws:iam::677310820158:role/${config.role}` || 'arn:aws:iam::677310820158:role/lambda_basic_execution'
     };
   }
 
@@ -169,6 +169,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
       if (!getResult.lambdaExists) {
         return createOrUpdateIAMRole(iamClient, iamParams)
           .then(role => {
+            console.log(JSON.stringify(role, null, 2));
             params = {
               FunctionName: config.functionName,
               Description: config.description,
