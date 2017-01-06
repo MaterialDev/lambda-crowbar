@@ -38,7 +38,7 @@ nodeAwsLambda.prototype.deploy = (deploymentParams) => {
     }
   }
 
-  return Bluebird.map(envLambdas);
+  return Bluebird.mapSeries(envLambdas);
 };
 
 nodeAwsLambda.prototype.schedule = (scheduleParams) => {
