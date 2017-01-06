@@ -148,7 +148,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
 
   const iamClient = new AWS.IAM();
 
-  let params;
+  let params = {};
   let iamParams;
   if (config.role && config.policies) {
     iamParams = {
@@ -161,6 +161,8 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
       Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution'
     };
   }
+
+  params.FunctionName = config.functionName;
 
   return retryAwsCall(getLambdaFunction, 'getLambdaFunction', lambda, params.FunctionName)
     .then((getResult) => {
