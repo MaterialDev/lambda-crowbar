@@ -177,12 +177,14 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
     .then((getResult) => {
       if (!getResult.lambdaExists) {
         return createOrUpdateIAMRole(iamClient, iamParams)
-          .then(roleResponse => {
+          .then(createResponse => {
+            console.log(`createResponse:`);
+            console.log(JSON.stringify(createResponse, null, 2));
             params = {
               FunctionName: config.functionName,
               Description: config.description,
               Handler: config.handler,
-              Role: roleResponse.Arn,
+              Role: createResponse.Arn,
               Timeout: config.timeout || 30,
               MemorySize: config.memorySize || 128,
               Runtime: config.runtime || LAMBDA_RUNTIME
@@ -207,12 +209,14 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
       }
       const existingFunctionArn = getResult.functionArn;
       return createOrUpdateIAMRole(iamClient, params)
-        .then(role => {
+        .then(updateResponse => {
+          console.log(`updateResponse:`);
+          console.log(JSON.stringify(updateResponse, null, 2));
           params = {
             FunctionName: config.functionName,
             Description: config.description,
             Handler: config.handler,
-            Role: role.Arn,
+            Role: updateResponse.Arn,
             Timeout: config.timeout || 30,
             MemorySize: config.memorySize || 128,
             Runtime: config.runtime || LAMBDA_RUNTIME
