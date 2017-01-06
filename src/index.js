@@ -153,7 +153,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
   if (config.role && config.policies) {
     iamParams = {
       Role: config.role || 'lambda_basic_execution',
-      Policies: config.polices
+      Policies: config.policies
     };
   }
   else {
