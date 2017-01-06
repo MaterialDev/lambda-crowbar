@@ -178,13 +178,11 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
       if (!getResult.lambdaExists) {
         return createOrUpdateIAMRole(iamClient, iamParams)
           .then(roleResponse => {
-            console.log(`roleResponse`);
-            console.log(JSON.stringify(roleResponse, null, 2));
             params = {
               FunctionName: config.functionName,
               Description: config.description,
               Handler: config.handler,
-              Role: roleResponse.Role.Arn,
+              Role: roleResponse.Arn,
               Timeout: config.timeout || 30,
               MemorySize: config.memorySize || 128,
               Runtime: config.runtime || LAMBDA_RUNTIME
@@ -282,7 +280,7 @@ const getIAMRole = (iamClient, roleName) => {
       }
       else {
         console.log(`Retrieved IAM Role successfully. [Data: ${JSON.stringify(data)}]`);
-        resolve(data);
+        resolve(data.Role);
       }
     });
   });
@@ -292,7 +290,7 @@ const createOrUpdateIAMRole = (iamClient, params) => {
   console.log('params');
   console.log(JSON.stringify(params, null, 2));
   if (params.Role && !params.Policies) {
-    return Promise.resolve({Role: {Arn: params.Role}});
+    return Promise.resolve({Arn: params.Role});
   }
   const roleName = params.Role;
   const policies = params.Policies;
