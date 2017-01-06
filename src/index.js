@@ -285,7 +285,7 @@ const createOrUpdateIAMRole = (iamClient, params) => {
         });
       });
   }
-  return params;
+  return Promise.resolve(params);
 };
 
 const createIAMRole = (iamClient, roleName) => {
