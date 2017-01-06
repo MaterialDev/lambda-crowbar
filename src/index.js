@@ -153,9 +153,6 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
     accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
     secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
   });
-
-  const iamClient = new AWS.IAM();
-
   let params = {};
   let iamParams;
   if (config.role && config.policies) {
@@ -176,7 +173,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
   return retryAwsCall(getLambdaFunction, 'getLambdaFunction', lambda, params.FunctionName)
     .then((getResult) => {
       if (!getResult.lambdaExists) {
-        return createOrUpdateIAMRole(iamClient, iamParams)
+        return createOrUpdateIAMRole(iamParams)
           .then(createResponse => {
             console.log(`createResponse:`);
             console.log(JSON.stringify(createResponse, null, 2));
@@ -208,7 +205,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
           });
       }
       const existingFunctionArn = getResult.functionArn;
-      return createOrUpdateIAMRole(iamClient, params)
+      return createOrUpdateIAMRole(iamParams)
         .then(updateResponse => {
           console.log(`updateResponse:`);
           console.log(JSON.stringify(updateResponse, null, 2));
@@ -285,7 +282,7 @@ const getIAMRole = (roleName) => {
     });
 };
 
-const createOrUpdateIAMRole = (iamClient, params) => {
+const createOrUpdateIAMRole = (params) => {
   console.log('params');
   console.log(JSON.stringify(params, null, 2));
   if (params.hasOwnProperty('Role') && !params.hasOwnProperty('Policies')) {
@@ -312,7 +309,7 @@ const createOrUpdateIAMRole = (iamClient, params) => {
           PolicyName: policy.PolicyName,
           RoleName: role.RoleName
         };
-        return putIAMRolePolicy(iamClient, localParams);
+        return putIAMRolePolicy(localParams);
       });
     })
     .then(() => {
@@ -320,8 +317,9 @@ const createOrUpdateIAMRole = (iamClient, params) => {
     });
 };
 
-const createIAMRole = (iamClient, roleName) => {
+const createIAMRole = (roleName) => {
   console.log(`Creating IAM Role. [Role Name: ${roleName}]`);
+  const iamClient = new AWS.IAM();
   const localParams = {
     AssumeRolePolicyDocument: urlcodeJson.encode({
       Version: '2012-10-17',
@@ -345,8 +343,9 @@ const createIAMRole = (iamClient, roleName) => {
     });
 };
 
-const putIAMRolePolicy = (iamClient, params) => {
+const putIAMRolePolicy = (params) => {
   console.log(`Creating IAM Role. [Role Name: ${params.RoleName}]`);
+  const iamClient = new AWS.IAM();
   const localParams = {
     PolicyDocument: JSON.stringify(params.PolicyDocument),
     PolicyName: params.PolicyName,
