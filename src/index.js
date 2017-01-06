@@ -149,34 +149,34 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
   const iamClient = new AWS.IAM();
 
   let params;
+  let iamParams;
   if (config.role && config.policies) {
-    params = {
-      FunctionName: config.functionName,
-      Description: config.description,
-      Handler: config.handler,
+    iamParams = {
       Role: config.role || 'lambda_basic_execution',
-      Policies: config.polices,
-      Timeout: config.timeout || 30,
-      MemorySize: config.memorySize || 128,
-      Runtime: config.runtime || LAMBDA_RUNTIME
+      Policies: config.polices
     };
   }
   else {
-    params = {
-      FunctionName: config.functionName,
-      Description: config.description,
-      Handler: config.handler,
-      Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution',
-      Timeout: config.timeout || 30,
-      MemorySize: config.memorySize || 128,
-      Runtime: config.runtime || LAMBDA_RUNTIME
+    iamParams = {
+      Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution'
     };
   }
 
   return retryAwsCall(getLambdaFunction, 'getLambdaFunction', lambda, params.FunctionName)
     .then((getResult) => {
       if (!getResult.lambdaExists) {
-        return createOrUpdateIAMRole(iamClient, params)
+        return createOrUpdateIAMRole(iamClient, iamParams)
+          .then(role => {
+            params = {
+              FunctionName: config.functionName,
+              Description: config.description,
+              Handler: config.handler,
+              Role: role.Arn,
+              Timeout: config.timeout || 30,
+              MemorySize: config.memorySize || 128,
+              Runtime: config.runtime || LAMBDA_RUNTIME
+            };
+          })
           .then(() => createLambdaFunction(lambda, codePackage, params))
           .then((createFunctionResult) => {
             functionArn = createFunctionResult.functionArn;
@@ -196,6 +196,17 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
       }
       const existingFunctionArn = getResult.functionArn;
       return createOrUpdateIAMRole(iamClient, params)
+        .then(role => {
+          params = {
+            FunctionName: config.functionName,
+            Description: config.description,
+            Handler: config.handler,
+            Role: role.Arn,
+            Timeout: config.timeout || 30,
+            MemorySize: config.memorySize || 128,
+            Runtime: config.runtime || LAMBDA_RUNTIME
+          };
+        })
         .then(() => updateLambdaFunction(lambda, codePackage, params))
         .then(() => retryAwsCall(updateLambdaConfig, 'updateLambdaConfig', lambda, params))
         .then(() => retryAwsCall(updateEventSource, 'updateEventSource', lambda, config))
@@ -283,9 +294,13 @@ const createOrUpdateIAMRole = (iamClient, params) => {
           };
           return putIAMRolePolicy(iamClient, localParams);
         });
+      })
+      .then(() => getIAMRole(iamClient, roleName))
+      .then(data => {
+        return data.Role;
       });
   }
-  return Promise.resolve(params);
+  return Promise.resolve({Arn: params.Role});
 };
 
 const createIAMRole = (iamClient, roleName) => {
