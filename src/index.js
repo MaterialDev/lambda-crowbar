@@ -3,7 +3,7 @@ const AWS = require('aws-sdk');
 const extend = require('util')._extend; //eslint-disable-line no-underscore-dangle
 const async = require('async');
 const HttpsProxyAgent = require('https-proxy-agent');
-const Bluebird = require('bluebird');
+const Promise = require('bluebird');
 const bbRetry = require('bluebird-retry');
 const lodash = require('lodash');
 const promiseRetry = require('promise-retry');
@@ -38,7 +38,7 @@ nodeAwsLambda.prototype.deploy = (deploymentParams) => {
     }
   }
 
-  return Promise.map(envLambdas);
+  return Promise.mapSeries(envLambdas);
 };
 
 nodeAwsLambda.prototype.schedule = (scheduleParams) => {
@@ -263,7 +263,7 @@ const getLambdaFunction = (lambdaClient, functionName) => {
 };
 
 const getIAMRole = (iamClient, roleName) => {
-  return new Bluebird((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     console.log(`Getting IAM Role. [Role Name: ${roleName}]`);
     const localParams = {
       RoleName: roleName
@@ -301,7 +301,7 @@ const createOrUpdateIAMRole = (iamClient, params) => {
       console.log(`roleResponse`);
       console.log(JSON.stringify(roleResponse, null, 2));
       role = roleResponse;
-      return Bluebird.mapSeries(policies, policy => {
+      return Promise.mapSeries(policies, policy => {
         console.log(JSON.stringify(policy, null, 2));
         const localParams = {
           PolicyDocument: policy.PolicyDocument,
@@ -317,7 +317,7 @@ const createOrUpdateIAMRole = (iamClient, params) => {
 };
 
 const createIAMRole = (iamClient, roleName) => {
-  return new Bluebird((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     console.log(`Creating IAM Role. [Role Name: ${roleName}]`);
     const localParams = {
       AssumeRolePolicyDocument: urlcodeJson.encode({
@@ -348,7 +348,7 @@ const createIAMRole = (iamClient, roleName) => {
 };
 
 const putIAMRolePolicy = (iamClient, params) => {
-  return new Bluebird((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     console.log(`Creating IAM Role. [Role Name: ${params.RoleName}]`);
     const localParams = {
       PolicyDocument: params.PolicyDocument.toString(),
@@ -377,7 +377,7 @@ const putIAMRolePolicy = (iamClient, params) => {
  * @private
  */
 const createLambdaFunction = (lambdaClient, codePackage, params) => {
-  return new Bluebird((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     console.log(`Creating LambdaFunction. [FunctionName: ${params.FunctionName}]`);
     const zipFileContents = fs.readFileSync(codePackage);
     const localParams = params;
@@ -404,7 +404,7 @@ const createLambdaFunction = (lambdaClient, codePackage, params) => {
  * @private
  */
 const updateLambdaFunction = (lambdaClient, codePackage, params) => {
-  return new Bluebird((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     console.log(`Updating LambdaFunction. [FunctionName: ${params.FunctionName}]`);
     const zipFileContents = fs.readFileSync(codePackage);
     const updateFunctionParams = {
@@ -449,7 +449,7 @@ const updateLambdaConfig = (lambdaClient, params) => {
  * @private
  */
 const updateEventSource = (lambdaClient, config) => {
-  return new Bluebird((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     if (!config.eventSource) {
       resolve();
       return;
@@ -513,10 +513,10 @@ const updateEventSource = (lambdaClient, config) => {
  */
 const updatePushSource = (lambdaClient, snsClient, config, functionArn) => {
   if (!config.pushSource) {
-    return Bluebird.resolve(true);
+    return Promise.resolve(true);
   }
 
-  return Bluebird.each(config.pushSource, (currentTopic, currentIndex, length) => {
+  return Promise.each(config.pushSource, (currentTopic, currentIndex, length) => {
     console.log(`Executing Topic ${currentIndex} of ${length}`);
     console.log(`Current Topic: ${JSON.stringify(currentTopic)}`);
     const currentTopicNameArn = currentTopic.TopicArn;
@@ -540,7 +540,7 @@ const updatePushSource = (lambdaClient, snsClient, config, functionArn) => {
  * @private
  */
 const createTopicIfNotExists = (snsClient, topicName) => {
-  return new Bluebird((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const listTopicParams = {};
 
     snsClient.listTopics(listTopicParams, (err, data) => {
@@ -586,7 +586,7 @@ const createTopicIfNotExists = (snsClient, topicName) => {
  * @private
  */
 const subscribeLambdaToTopic = (lambdaClient, snsClient, config, functionArn, topicName, currentTopicNameArn, currentTopicStatementId) => {
-  return new Bluebird((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const subParams = {
       Protocol: 'lambda',
       Endpoint: functionArn,
@@ -649,7 +649,7 @@ const publishLambdaVersion = (lambdaClient, config) => {
           versionsToDelete.push(deleteLambdaFunctionVersion(lambdaClient, config, version));
         }
       }
-      return Bluebird.all(versionsToDelete);
+      return Promise.all(versionsToDelete);
     });
 };
 
@@ -767,7 +767,7 @@ const addLoggingLambdaPermissionToLambda = (lambdaClient, config) => {
 };
 
 const updateCloudWatchLogsSubscription = (cloudWatchLogsClient, config, params) => {
-  return new Bluebird((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const cloudWatchParams = {
       destinationArn: config.logging.Arn, /* required */
       filterName: `LambdaStream_${params.FunctionName}`,
