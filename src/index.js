@@ -279,8 +279,12 @@ const getIAMRole = (iamClient, roleName) => {
 };
 
 const createOrUpdateIAMRole = (iamClient, params) => {
+  if (params.Role && !params.Policies) {
+    return Promise.resolve({Arn: params.Role});
+  }
   const roleName = params.Role;
   const policies = params.Policies;
+  let role;
   return getIAMRole(iamClient, roleName)
     .catch(err => {
       if (err.message === 'NoSuchEntity') {
@@ -288,17 +292,18 @@ const createOrUpdateIAMRole = (iamClient, params) => {
       }
       throw err;
     })
-    .then(role => {
-      if (params.Policies) {
-        return policies.mapSeries(policies, policy => {
-          const localParams = {
-            PolicyDocument: policy.PolicyDocument,
-            PolicyName: policy.PolicyName,
-            RoleName: role.RoleName
-          };
-          return putIAMRolePolicy(iamClient, localParams);
-        });
-      }
+    .then(roleResponse => {
+      role = roleResponse;
+      return policies.mapSeries(policies, policy => {
+        const localParams = {
+          PolicyDocument: policy.PolicyDocument,
+          PolicyName: policy.PolicyName,
+          RoleName: role.RoleName
+        };
+        return putIAMRolePolicy(iamClient, localParams);
+      });
+    })
+    .then(() => {
       return role;
     });
 };
