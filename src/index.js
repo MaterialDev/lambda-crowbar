@@ -161,20 +161,22 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
       Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution'
     };
   }
-
+  console.log(`iamParams`);
+  console.log(JSON.stringify(iamParams, null, 2));
   params.FunctionName = config.functionName;
 
   return retryAwsCall(getLambdaFunction, 'getLambdaFunction', lambda, params.FunctionName)
     .then((getResult) => {
       if (!getResult.lambdaExists) {
         return createOrUpdateIAMRole(iamClient, iamParams)
-          .then(role => {
-            console.log(JSON.stringify(role, null, 2));
+          .then(roleResponse => {
+            console.log(`roleResponse`);
+            console.log(JSON.stringify(roleResponse, null, 2));
             params = {
               FunctionName: config.functionName,
               Description: config.description,
               Handler: config.handler,
-              Role: role.Arn,
+              Role: roleResponse.Arn,
               Timeout: config.timeout || 30,
               MemorySize: config.memorySize || 128,
               Runtime: config.runtime || LAMBDA_RUNTIME
@@ -293,6 +295,8 @@ const createOrUpdateIAMRole = (iamClient, params) => {
       throw err;
     })
     .then(roleResponse => {
+      console.log(`roleResponse`);
+      console.log(JSON.stringify(roleResponse, null, 2));
       role = roleResponse;
       return policies.mapSeries(policies, policy => {
         const localParams = {
