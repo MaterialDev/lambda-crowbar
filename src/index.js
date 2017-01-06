@@ -38,7 +38,7 @@ nodeAwsLambda.prototype.deploy = (deploymentParams) => {
     }
   }
 
-  return Promise.mapSeries(envLambdas);
+  return Bluebird.map(envLambdas);
 };
 
 nodeAwsLambda.prototype.schedule = (scheduleParams) => {
@@ -301,7 +301,7 @@ const createOrUpdateIAMRole = (iamClient, params) => {
       console.log(`roleResponse`);
       console.log(JSON.stringify(roleResponse, null, 2));
       role = roleResponse;
-      return Promise.mapSeries(policies, policy => {
+      return Bluebird.mapSeries(policies, policy => {
         console.log(JSON.stringify(policy, null, 2));
         const localParams = {
           PolicyDocument: policy.PolicyDocument,
