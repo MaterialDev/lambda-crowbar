@@ -30,15 +30,22 @@ nodeAwsLambda.prototype.deploy = (deploymentParams) => {
   const lambdasToDeploy = Object.keys(lambdaConfig);
   console.log(`Lambdas to deploy in ${deployEnvironment}: ${JSON.stringify(lambdasToDeploy, null, 2)}`);
 
-  const envLambdas = [];
-  for (const lambdaName of lambdasToDeploy) {
+  // const envLambdas = [];
+  // for (const lambdaName of lambdasToDeploy) {
+  //   const lambda = lambdaConfig[lambdaName];
+  //   if (lambda.deploymentEnvironment.toLocaleUpperCase() === deployEnvironment) {
+  //     envLambdas.push(deployLambdaFunction(lambdaPackageZipFilePath, lambda));
+  //   }
+  // }
+  return Promise.mapSeries(lambdasToDeploy, lambdaName => {
     const lambda = lambdaConfig[lambdaName];
     if (lambda.deploymentEnvironment.toLocaleUpperCase() === deployEnvironment) {
-      envLambdas.push(deployLambdaFunction(lambdaPackageZipFilePath, lambda));
+      return deployLambdaFunction(lambdaPackageZipFilePath, lambda);
     }
-  }
+    return {};
+  });
 
-  return Promise.all(envLambdas);
+  // return Promise.all(envLambdas);
 };
 
 nodeAwsLambda.prototype.schedule = (scheduleParams) => {
