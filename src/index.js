@@ -158,7 +158,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
   }
   else {
     iamParams = {
-      Role: `arn:aws:iam::677310820158:role/${config.role}` || 'arn:aws:iam::677310820158:role/lambda_basic_execution'
+      Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution'
     };
   }
 
