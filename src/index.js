@@ -291,7 +291,7 @@ const createOrUpdateIAMRole = (iamClient, params) => {
   let role;
   return getIAMRole(iamClient, roleName)
     .catch(err => {
-      if (err.message === 'NoSuchEntity') {
+      if (err.code === 'NoSuchEntity') {
         return createIAMRole(iamClient, roleName);
       }
       throw err;
