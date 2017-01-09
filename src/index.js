@@ -146,18 +146,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
     secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
   });
   let params = {};
-  let iamParams;
-  if (config.role && config.policies) {
-    iamParams = {
-      Role: config.role || 'lambda_basic_execution',
-      Policies: config.policies
-    };
-  }
-  else {
-    iamParams = {
-      Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution'
-    };
-  }
+  const iamParams = buildRoleConfig(config);
   console.log(`iamParams`);
   console.log(JSON.stringify(iamParams, null, 2));
   params.FunctionName = config.functionName;
@@ -258,6 +247,52 @@ const getLambdaFunction = (lambdaClient, functionName) => {
       }
     });
   });
+};
+
+const buildRoleConfig = (config) => {
+  let params;
+  if (config.role && config.policies) {
+    params = {
+      Role: config.role,
+      Policies: config.policies
+    };
+  }
+  else if (!config.hasOwnProperty('role') && config.policies) {
+    params = {
+      Role: `${config.functionName}-role`, // use the lambda name + role as the role
+      Policies: config.policies
+    };
+  }
+  else if (!config.hasOwnProperty('role') && !config.hasOwnProperty('policies')) {
+    params = {
+      Role: `${config.functionName}-role`, // use the lambda name + role as the role
+      Policies: [
+        {
+          PolicyName: 'LambdaBasicLogging',
+          PolicyDocument: {
+            Version: '2012-10-17',
+            Statement: [
+              {
+                Effect: 'Allow',
+                Action: [
+                  'logs:CreateLogGroup',
+                  'logs:CreateLogStream',
+                  'logs:PutLogEvents'
+                ],
+                Resource: 'arn:aws:logs:*:*:*'
+              }
+            ]
+          }
+        }
+      ]
+    };
+  }
+  else {
+    params = {
+      Role: config.role || 'arn:aws:iam::677310820158:role/lambda_basic_execution'
+    };
+  }
+  return params;
 };
 
 const getIAMRole = (roleName) => {
