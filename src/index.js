@@ -8,7 +8,6 @@ const bbRetry = require('bluebird-retry');
 const lodash = require('lodash');
 const promiseRetry = require('promise-retry');
 const path = require('path');
-const urlcodeJson = require('urlcode-json');
 
 AWS.config.update({region: 'us-east-1'});
 const LAMBDA_RUNTIME = 'nodejs4.3';
@@ -367,22 +366,20 @@ const createOrUpdateIAMRole = (params) => {
 const createIAMRole = (roleName) => {
   console.log(`Creating IAM Role. [Role Name: ${roleName}]`);
   const iamClient = new AWS.IAM();
-  const assumedRolePolicyDocument = {
-    Version: '2012-10-17',
-    Statement: [
+  const assumedRolePolicyDocument = `{
+  "Version": "2012-10-17",
+    "Statement": [
       {
-        Effect: 'Allow',
-        Principal: {
-          Service: 'lambda.amazonaws.com'
-        },
-        Action: 'sts:AssumeRole'
-      }
-    ]
-  };
-  const urlEncodedAssumeRoleDocument = urlcodeJson.encode(assumedRolePolicyDocument);
-  console.log(`assume role document: ${urlEncodedAssumeRoleDocument}`);
+      "Effect": "Allow",
+            "Principal": {
+              "Service": "lambda.amazonaws.com"
+              },
+      "Action": "sts:AssumeRole"
+          }
+      ]
+  }`;
   const localParams = {
-    AssumeRolePolicyDocument: urlEncodedAssumeRoleDocument,
+    AssumeRolePolicyDocument: assumedRolePolicyDocument,
     RoleName: roleName
   };
   return iamClient.createRole(localParams).promise()
