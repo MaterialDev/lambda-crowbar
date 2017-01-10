@@ -379,8 +379,9 @@ const createIAMRole = (roleName) => {
       }
     ]
   };
+  const urlEncodedAssumeRoleDocument = urlcodeJson.encode(JSON.stringify(assumedRolePolicyDocument));
   const localParams = {
-    AssumeRolePolicyDocument: urlcodeJson.encode(JSON.stringify(assumedRolePolicyDocument)),
+    AssumeRolePolicyDocument: urlEncodedAssumeRoleDocument,
     RoleName: roleName
   };
   return iamClient.createRole(localParams).promise()
