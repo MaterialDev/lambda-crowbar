@@ -367,19 +367,20 @@ const createOrUpdateIAMRole = (params) => {
 const createIAMRole = (roleName) => {
   console.log(`Creating IAM Role. [Role Name: ${roleName}]`);
   const iamClient = new AWS.IAM();
+  const assumedRolePolicyDocument = {
+    Version: '2012-10-17',
+    Statement: [
+      {
+        Effect: 'Allow',
+        Principal: {
+          Service: 'lambda.amazonaws.com'
+        },
+        Action: 'sts:AssumeRole'
+      }
+    ]
+  };
   const localParams = {
-    AssumeRolePolicyDocument: urlcodeJson.encode({
-      Version: '2012-10-17',
-      Statement: [
-        {
-          Effect: 'Allow',
-          Principal: {
-            Service: 'lambda.amazonaws.com'
-          },
-          Action: 'sts:AssumeRole'
-        }
-      ]
-    }),
+    AssumeRolePolicyDocument: urlcodeJson.encode(JSON.stringify(assumedRolePolicyDocument)),
     RoleName: roleName
   };
   return iamClient.createRole(localParams).promise()
