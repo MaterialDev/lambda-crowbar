@@ -340,6 +340,7 @@ const createOrUpdateIAMRole = (params) => {
   let role;
   return getIAMRole(roleName)
     .catch(err => {
+      console.log(`err: ${JSON.stringify(err, null, 2)}`);
       if (err.code === 'NoSuchEntity') {
         return createIAMRole(roleName);
       }
