@@ -379,7 +379,8 @@ const createIAMRole = (roleName) => {
       }
     ]
   };
-  const urlEncodedAssumeRoleDocument = urlcodeJson.encode(JSON.stringify(assumedRolePolicyDocument));
+  const urlEncodedAssumeRoleDocument = urlcodeJson.encode(assumedRolePolicyDocument);
+  console.log(`assume role document: ${urlEncodedAssumeRoleDocument}`);
   const localParams = {
     AssumeRolePolicyDocument: urlEncodedAssumeRoleDocument,
     RoleName: roleName
