@@ -161,8 +161,6 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
   });
   let params = {};
   const iamParams = buildRoleConfig(config);
-  console.log(`iamParams`);
-  console.log(JSON.stringify(iamParams, null, 2));
 
   if (config.deploymentEnvironment && config.deploymentEnvironment.constructor === Array) {
     params.FunctionName = `${deployEnvironment}-${config.serviceName}-${config.functionName}`;
@@ -340,10 +338,11 @@ const createOrUpdateIAMRole = (params) => {
   let role;
   return getIAMRole(roleName)
     .catch(err => {
-      console.log(`err: ${JSON.stringify(err, null, 2)}`);
       if (err.code === 'NoSuchEntity') {
+        console.log(`IAM Role not found. [Role Name: ${roleName}]`);
         return createIAMRole(roleName);
       }
+      console.log(`err: ${JSON.stringify(err, null, 2)}`);
       throw err;
     })
     .then(roleResponse => {
@@ -388,6 +387,10 @@ const createIAMRole = (roleName) => {
       console.log('createRoleResult');
       console.log(JSON.stringify(data, null, 2));
       return data.Role;
+    })
+    .catch(err => {
+      console.log(`Error creating role: ${JSON.stringify(err, null, 2)}`);
+      throw err;
     });
 };
 
