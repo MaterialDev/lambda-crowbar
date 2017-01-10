@@ -33,6 +33,7 @@ nodeAwsLambda.prototype.deploy = (deploymentParams) => {
   for (const lambdaName of lambdasToDeploy) {
     const lambda = lambdaConfig[lambdaName];
     if (lambda.deploymentEnvironment && lambda.deploymentEnvironment.constructor === Array) {
+      console.log(`Using Array of environments`);
       const isEnvironmentDeployable = (element) => {
         return element.toLocaleUpperCase() === deployEnvironment;
       };
@@ -42,6 +43,7 @@ nodeAwsLambda.prototype.deploy = (deploymentParams) => {
       }
     }
     if (lambda.deploymentEnvironment && lambda.deploymentEnvironment.constructor === String) {
+      console.log(`Using Single Environment`);
       if (lambda.deploymentEnvironment.toLocaleUpperCase() === deployEnvironment) {
         envLambdas.push(deployLambdaFunction(deploymentParams, lambda));
       }
@@ -348,7 +350,7 @@ const createOrUpdateIAMRole = (params) => {
       console.log(JSON.stringify(roleResponse, null, 2));
       role = roleResponse;
       return Promise.mapSeries(policies, policy => {
-        console.log(JSON.stringify(policy, null, 2));
+        console.log(`Mapped Policy Document: ${JSON.stringify(policy, null, 2)}`);
         const localParams = {
           PolicyDocument: policy.PolicyDocument,
           PolicyName: policy.PolicyName,
