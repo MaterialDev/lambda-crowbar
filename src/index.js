@@ -21,7 +21,6 @@ nodeAwsLambda.prototype.deploy = (deploymentParams) => {
   if (!lodash.has(deploymentParams, 'zipFileName')) {
     throw new Error('deploymentParams must have field \'zipFileName\'');
   }
-  const lambdaPackageZipFilePath = `./dist/${deploymentParams.zipFileName}`;
   if (!lodash.has(deploymentParams, 'environment')) {
     throw new Error('deploymentParams must have field \'environment\'');
   }
@@ -33,8 +32,19 @@ nodeAwsLambda.prototype.deploy = (deploymentParams) => {
   const envLambdas = [];
   for (const lambdaName of lambdasToDeploy) {
     const lambda = lambdaConfig[lambdaName];
-    if (lambda.deploymentEnvironment.toLocaleUpperCase() === deployEnvironment) {
-      envLambdas.push(deployLambdaFunction(lambdaPackageZipFilePath, lambda));
+    if (lambda.deploymentEnvironment && lambda.deploymentEnvironment.constructor === Array) {
+      const isEnvironmentDeployable = (element) => {
+        return element.toLocaleUpperCase() === deployEnvironment;
+      };
+
+      if (lambda.deploymentEnvironment.find(isEnvironmentDeployable)) {
+        envLambdas.push(deployLambdaFunction(deploymentParams, lambda));
+      }
+    }
+    if (lambda.deploymentEnvironment && lambda.deploymentEnvironment.constructor === String) {
+      if (lambda.deploymentEnvironment.toLocaleUpperCase() === deployEnvironment) {
+        envLambdas.push(deployLambdaFunction(deploymentParams, lambda));
+      }
     }
   }
   return Promise.all(envLambdas);
@@ -109,7 +119,9 @@ nodeAwsLambda.prototype.schedule = (scheduleParams) => {
     });
 };
 
-const deployLambdaFunction = (codePackage, config, lambdaClient) => {
+const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
+  const codePackage = `./dist/${deploymentParams.zipFileName}`;
+  const deployEnvironment = deploymentParams.environment.toLocaleLowerCase();
   let functionArn = '';
   let lambda = lambdaClient;
   if (!lambda) {
@@ -137,7 +149,7 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
   const snsClient = new AWS.SNS({
     region: 'region' in config ? config.region : 'us-east-1',
     accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
-    secretAccessKey: 'secretAccessKey' in config ? config.srcretAccessKey : ''
+    secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
   });
 
   const cloudWatchLogsClient = new AWS.CloudWatchLogs({
@@ -149,7 +161,13 @@ const deployLambdaFunction = (codePackage, config, lambdaClient) => {
   const iamParams = buildRoleConfig(config);
   console.log(`iamParams`);
   console.log(JSON.stringify(iamParams, null, 2));
-  params.FunctionName = config.functionName;
+
+  if (config.deploymentEnvironment && config.deploymentEnvironment.constructor === Array) {
+    params.FunctionName = `${deployEnvironment}-${config.serviceName}-${config.functionName}`;
+  }
+  if (config.deploymentEnvironment && config.deploymentEnvironment.constructor === String) {
+    params.FunctionName = config.functionName;
+  }
 
   return retryAwsCall(getLambdaFunction, 'getLambdaFunction', lambda, params.FunctionName)
     .then((getResult) => {
@@ -739,6 +757,12 @@ const deleteLambdaFunctionVersion = (lambdaClient, config, version) => {
     });
   });
 };
+
+// const buildLoggingConfig = (lambdaClient, cloudWatchLogsClient, config, params) => {
+//   if (!config.logging) {
+//     return Promise.resolve('no logging to attach');
+//   }
+// }
 
 const attachLogging = (lambdaClient, cloudWatchLogsClient, config, params) => {
   if (!config.logging) {
