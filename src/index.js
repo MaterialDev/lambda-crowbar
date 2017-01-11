@@ -180,7 +180,12 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
           .then(createResponse => {
             params.Role = createResponse.Arn;
           })
-          .then(() => createLambdaFunction(lambda, codePackage, params))
+          .then(() => {
+            const localCreateLambdaFunction = () => {
+              createLambdaFunction(lambda, codePackage, params);
+            };
+            return bbRetry(localCreateLambdaFunction, {max_tries: 3, interval: 1000, backoff: 500});
+          })
           .then((createFunctionResult) => {
             functionArn = createFunctionResult.functionArn;
           })
@@ -202,7 +207,12 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
         .then(updateResponse => {
           params.Role = updateResponse.Arn;
         })
-        .then(() => updateLambdaFunction(lambda, codePackage, params))
+        .then(() => {
+          const localUpdateLambdaFunction = () => {
+            updateLambdaFunction(lambda, codePackage, params);
+          };
+          return bbRetry(localUpdateLambdaFunction, {max_tries: 3, interval: 1000, backoff: 500});
+        })
         .then(() => retryAwsCall(updateLambdaConfig, 'updateLambdaConfig', lambda, params))
         .then(() => retryAwsCall(updateEventSource, 'updateEventSource', lambda, localConfig))
         .then(() => updatePushSource(lambda, snsClient, localConfig, existingFunctionArn))
@@ -334,10 +344,7 @@ const createOrUpdateIAMRole = (params) => {
     .catch(err => {
       if (err.code === 'NoSuchEntity') {
         console.log(`IAM Role not found. [Role Name: ${roleName}]`);
-        return createIAMRole(roleName)
-          .then(() => {
-            return getIAMRole(roleName);
-          });
+        return createIAMRole(roleName);
       }
       console.log(`err: ${JSON.stringify(err, null, 2)}`);
       throw err;
