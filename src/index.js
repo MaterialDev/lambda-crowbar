@@ -121,13 +121,13 @@ nodeAwsLambda.prototype.schedule = (scheduleParams) => {
 };
 
 const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
+  const localConfig = cloneConfigObject(config, deploymentParams);
   const codePackage = `./dist/${deploymentParams.zipFileName}`;
-  const deployEnvironment = deploymentParams.environment.toLocaleLowerCase();
   let functionArn = '';
   let lambda = lambdaClient;
   if (!lambda) {
-    if ('profile' in config) {
-      AWS.config.credentials = new AWS.SharedIniFileCredentials({profile: config.profile});
+    if ('profile' in localConfig) {
+      AWS.config.credentials = new AWS.SharedIniFileCredentials({profile: localConfig.profile});
     }
 
     if (process.env.HTTPS_PROXY) {
@@ -139,50 +139,39 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
     }
 
     lambda = new AWS.Lambda({
-      region: 'region' in config ? config.region : 'us-east-1',
-      accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
-      secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
+      region: 'region' in localConfig ? localConfig.region : 'us-east-1',
+      accessKeyId: 'accessKeyId' in localConfig ? localConfig.accessKeyId : '',
+      secretAccessKey: 'secretAccessKey' in localConfig ? localConfig.secretAccessKey : ''
     });
 
-    console.log(`Access Key Id From Deployer: ${config.accessKeyId}`);
+    console.log(`Access Key Id From Deployer: ${localConfig.accessKeyId}`);
   }
 
   const snsClient = new AWS.SNS({
-    region: 'region' in config ? config.region : 'us-east-1',
-    accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
-    secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
+    region: 'region' in localConfig ? localConfig.region : 'us-east-1',
+    accessKeyId: 'accessKeyId' in localConfig ? localConfig.accessKeyId : '',
+    secretAccessKey: 'secretAccessKey' in localConfig ? localConfig.secretAccessKey : ''
   });
 
   const cloudWatchLogsClient = new AWS.CloudWatchLogs({
-    region: 'region' in config ? config.region : 'us-east-1',
-    accessKeyId: 'accessKeyId' in config ? config.accessKeyId : '',
-    secretAccessKey: 'secretAccessKey' in config ? config.secretAccessKey : ''
+    region: 'region' in localConfig ? localConfig.region : 'us-east-1',
+    accessKeyId: 'accessKeyId' in localConfig ? localConfig.accessKeyId : '',
+    secretAccessKey: 'secretAccessKey' in localConfig ? localConfig.secretAccessKey : ''
   });
   let params = {};
-  const iamParams = buildRoleConfig(config);
+  const iamParams = buildRoleConfig(localConfig);
 
-  if (config.deploymentEnvironment && config.deploymentEnvironment.constructor === Array) {
-    params = {
-      FunctionName: `${deployEnvironment}-${config.serviceName}-${config.functionName}`,
-      Description: config.description,
-      Handler: config.handler,
-      Role: '',
-      Timeout: config.timeout || 30,
-      MemorySize: config.memorySize || 128,
-      Runtime: config.runtime || LAMBDA_RUNTIME
-    };
-  }
-  if (config.deploymentEnvironment && config.deploymentEnvironment.constructor === String) {
-    params = {
-      FunctionName: config.functionName,
-      Description: config.description,
-      Handler: config.handler,
-      Role: '',
-      Timeout: config.timeout || 30,
-      MemorySize: config.memorySize || 128,
-      Runtime: config.runtime || LAMBDA_RUNTIME
-    };
-  }
+
+  params = {
+    FunctionName: localConfig.functionName,
+    Description: localConfig.description,
+    Handler: localConfig.handler,
+    Role: '',
+    Timeout: localConfig.timeout || 30,
+    MemorySize: localConfig.memorySize || 128,
+    Runtime: localConfig.runtime || LAMBDA_RUNTIME
+  };
+
 
   return retryAwsCall(getLambdaFunction, 'getLambdaFunction', lambda, params.FunctionName)
     .then((getResult) => {
@@ -195,11 +184,11 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
           .then((createFunctionResult) => {
             functionArn = createFunctionResult.functionArn;
           })
-          .then(() => updateEventSource(lambda, config))
-          .then(() => updatePushSource(lambda, snsClient, config, functionArn))
+          .then(() => updateEventSource(lambda, localConfig))
+          .then(() => updatePushSource(lambda, snsClient, localConfig, functionArn))
           .then(() => {
             const localAttachLoggingFunction = () => {
-              return attachLogging(lambda, cloudWatchLogsClient, config, params);
+              return attachLogging(lambda, cloudWatchLogsClient, localConfig, params);
             };
             return bbRetry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
           })
@@ -215,12 +204,12 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
         })
         .then(() => updateLambdaFunction(lambda, codePackage, params))
         .then(() => retryAwsCall(updateLambdaConfig, 'updateLambdaConfig', lambda, params))
-        .then(() => retryAwsCall(updateEventSource, 'updateEventSource', lambda, config))
-        .then(() => updatePushSource(lambda, snsClient, config, existingFunctionArn))
-        .then(() => retryAwsCall(publishLambdaVersion, 'publishLambdaVersion', lambda, config))
+        .then(() => retryAwsCall(updateEventSource, 'updateEventSource', lambda, localConfig))
+        .then(() => updatePushSource(lambda, snsClient, localConfig, existingFunctionArn))
+        .then(() => retryAwsCall(publishLambdaVersion, 'publishLambdaVersion', lambda, localConfig))
         .then(() => {
           const localAttachLoggingFunction = () => {
-            return attachLogging(lambda, cloudWatchLogsClient, config, params);
+            return attachLogging(lambda, cloudWatchLogsClient, localConfig, params);
           };
           return bbRetry(localAttachLoggingFunction, {max_tries: 3, interval: 1000, backoff: 500});
         })
@@ -259,6 +248,15 @@ const getLambdaFunction = (lambdaClient, functionName) => {
       }
     });
   });
+};
+
+const cloneConfigObject = (config, deploymentParams) => {
+  const resultConfig = JSON.parse(JSON.stringify(config));
+  const deployEnvironment = deploymentParams.environment.toLocaleLowerCase();
+  if (config.deploymentEnvironment && config.deploymentEnvironment.constructor === Array) {
+    resultConfig.FunctionName = `${deployEnvironment}-${config.serviceName}-${config.functionName}`;
+  }
+  return resultConfig;
 };
 
 const buildRoleConfig = (config) => {
