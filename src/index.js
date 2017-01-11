@@ -182,7 +182,7 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
           })
           .then(() => {
             const localCreateLambdaFunction = () => {
-              createLambdaFunction(lambda, codePackage, params);
+              return createLambdaFunction(lambda, codePackage, params);
             };
             return bbRetry(localCreateLambdaFunction, {max_tries: 3, interval: 2000, backoff: 500});
           })
@@ -209,7 +209,7 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
         })
         .then(() => {
           const localUpdateLambdaFunction = () => {
-            updateLambdaFunction(lambda, codePackage, params);
+            return updateLambdaFunction(lambda, codePackage, params);
           };
           return bbRetry(localUpdateLambdaFunction, {max_tries: 3, interval: 2000, backoff: 500});
         })
