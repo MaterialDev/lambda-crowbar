@@ -173,8 +173,8 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
       if (!getResult.lambdaExists) {
         return createOrUpdateIAMRole(iamParams)
           .then(createResponse => {
-            console.log(`createResponse:`);
-            console.log(JSON.stringify(createResponse, null, 2));
+            // console.log(`createResponse:`);
+            // console.log(JSON.stringify(createResponse, null, 2));
             params = {
               FunctionName: config.functionName,
               Description: config.description,
@@ -320,8 +320,8 @@ const getIAMRole = (roleName) => {
   };
   return iamClient.getRole(localParams).promise()
     .then(data => {
-      console.log('getRoleResult');
-      console.log(JSON.stringify(data, null, 2));
+      // console.log('getRoleResult');
+      // console.log(JSON.stringify(data, null, 2));
       return data.Role;
     });
 };
@@ -349,7 +349,7 @@ const createOrUpdateIAMRole = (params) => {
       console.log(JSON.stringify(roleResponse, null, 2));
       role = roleResponse;
       return Promise.mapSeries(policies, policy => {
-        console.log(`Mapped Policy Document: ${JSON.stringify(policy, null, 2)}`);
+        // console.log(`Mapped Policy Document: ${JSON.stringify(policy, null, 2)}`);
         const localParams = {
           PolicyDocument: policy.PolicyDocument,
           PolicyName: policy.PolicyName,
@@ -404,8 +404,8 @@ const putIAMRolePolicy = (params) => {
   };
   return iamClient.putRolePolicy(localParams).promise()
     .then(data => {
-      console.log('putRoleResult');
-      console.log(JSON.stringify(data, null, 2));
+      // console.log('putRoleResult');
+      // console.log(JSON.stringify(data, null, 2));
       return data;
     });
 };
