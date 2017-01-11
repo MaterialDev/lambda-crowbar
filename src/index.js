@@ -256,6 +256,8 @@ const cloneConfigObject = (config, deploymentParams) => {
   if (config.deploymentEnvironment && config.deploymentEnvironment.constructor === Array) {
     resultConfig.FunctionName = `${deployEnvironment}-${config.serviceName}-${config.functionName}`;
   }
+  console.log(`local config object`);
+  console.log(JSON.stringify(resultConfig, null, 2));
   return resultConfig;
 };
 
