@@ -361,7 +361,7 @@ const createOrUpdateIAMRole = (params) => {
 };
 
 const waitForIamRolePropagation = (returnValue) => {
-  delay(8000)
+  return delay(8000)
     .then(() => {
       return returnValue;
     });
