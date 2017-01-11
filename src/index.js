@@ -8,6 +8,7 @@ const bbRetry = require('bluebird-retry');
 const lodash = require('lodash');
 const promiseRetry = require('promise-retry');
 const path = require('path');
+const delay = require('delay');
 
 AWS.config.update({region: 'us-east-1'});
 const LAMBDA_RUNTIME = 'nodejs4.3';
@@ -180,12 +181,8 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
           .then(createResponse => {
             params.Role = createResponse.Arn;
           })
-          .then(() => {
-            const localCreateLambdaFunction = () => {
-              return createLambdaFunction(lambda, codePackage, params);
-            };
-            return bbRetry(localCreateLambdaFunction, {max_tries: 8, interval: 3000, backoff: 1000, timeout: 6000});
-          })
+          .then(delay(3000))
+          .then(() => createLambdaFunction(lambda, codePackage, params))
           .then((createFunctionResult) => {
             functionArn = createFunctionResult.functionArn;
           })
@@ -207,12 +204,8 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
         .then(updateResponse => {
           params.Role = updateResponse.Arn;
         })
-        .then(() => {
-          const localUpdateLambdaFunction = () => {
-            return updateLambdaFunction(lambda, codePackage, params);
-          };
-          return bbRetry(localUpdateLambdaFunction, {max_tries: 8, interval: 3000, backoff: 1000, timeout: 6000});
-        })
+        .then(delay(3000))
+        .then(() => updateLambdaFunction(lambda, codePackage, params))
         .then(() => retryAwsCall(updateLambdaConfig, 'updateLambdaConfig', lambda, params))
         .then(() => retryAwsCall(updateEventSource, 'updateEventSource', lambda, localConfig))
         .then(() => updatePushSource(lambda, snsClient, localConfig, existingFunctionArn))
