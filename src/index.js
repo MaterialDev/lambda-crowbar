@@ -181,7 +181,6 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
           .then(createResponse => {
             params.Role = createResponse.Arn;
           })
-          .then(delay(3000))
           .then(() => createLambdaFunction(lambda, codePackage, params))
           .then((createFunctionResult) => {
             functionArn = createFunctionResult.functionArn;
@@ -204,7 +203,6 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
         .then(updateResponse => {
           params.Role = updateResponse.Arn;
         })
-        .then(delay(3000))
         .then(() => updateLambdaFunction(lambda, codePackage, params))
         .then(() => retryAwsCall(updateLambdaConfig, 'updateLambdaConfig', lambda, params))
         .then(() => retryAwsCall(updateEventSource, 'updateEventSource', lambda, localConfig))
@@ -337,7 +335,11 @@ const createOrUpdateIAMRole = (params) => {
     .catch(err => {
       if (err.code === 'NoSuchEntity') {
         console.log(`IAM Role not found. [Role Name: ${roleName}]`);
-        return createIAMRole(roleName);
+        return createIAMRole(roleName)
+          .then(delay(8000))
+          .then(result => {
+            return result;
+          });
       }
       console.log(`err: ${JSON.stringify(err, null, 2)}`);
       throw err;
