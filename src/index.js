@@ -336,10 +336,7 @@ const createOrUpdateIAMRole = (params) => {
       if (err.code === 'NoSuchEntity') {
         console.log(`IAM Role not found. [Role Name: ${roleName}]`);
         return createIAMRole(roleName)
-          .then(delay(8000))
-          .then(result => {
-            return result;
-          });
+          .then(createResponse => waitForIamRolePropagation(createResponse));
       }
       console.log(`err: ${JSON.stringify(err, null, 2)}`);
       throw err;
@@ -360,6 +357,13 @@ const createOrUpdateIAMRole = (params) => {
     })
     .then(() => {
       return role;
+    });
+};
+
+const waitForIamRolePropagation = (returnValue) => {
+  delay(8000)
+    .then(() => {
+      return returnValue;
     });
 };
 
