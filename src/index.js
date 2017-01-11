@@ -184,7 +184,7 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
             const localCreateLambdaFunction = () => {
               return createLambdaFunction(lambda, codePackage, params);
             };
-            return bbRetry(localCreateLambdaFunction, {max_tries: 3, interval: 2000, backoff: 500});
+            return bbRetry(localCreateLambdaFunction, {max_tries: 8, interval: 3000, backoff: 1000, timeout: 6000});
           })
           .then((createFunctionResult) => {
             functionArn = createFunctionResult.functionArn;
@@ -211,7 +211,7 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
           const localUpdateLambdaFunction = () => {
             return updateLambdaFunction(lambda, codePackage, params);
           };
-          return bbRetry(localUpdateLambdaFunction, {max_tries: 3, interval: 2000, backoff: 500});
+          return bbRetry(localUpdateLambdaFunction, {max_tries: 8, interval: 3000, backoff: 1000, timeout: 6000});
         })
         .then(() => retryAwsCall(updateLambdaConfig, 'updateLambdaConfig', lambda, params))
         .then(() => retryAwsCall(updateEventSource, 'updateEventSource', lambda, localConfig))
