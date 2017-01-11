@@ -322,8 +322,8 @@ const getIAMRole = (roleName) => {
 };
 
 const createOrUpdateIAMRole = (params) => {
-  console.log('params');
-  console.log(JSON.stringify(params, null, 2));
+  // console.log('params');
+  // console.log(JSON.stringify(params, null, 2));
   if (params.hasOwnProperty('Role') && !params.hasOwnProperty('Policies')) {
     return Promise.resolve({Arn: params.Role});
   }
