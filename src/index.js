@@ -162,10 +162,26 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
   const iamParams = buildRoleConfig(config);
 
   if (config.deploymentEnvironment && config.deploymentEnvironment.constructor === Array) {
-    params.FunctionName = `${deployEnvironment}-${config.serviceName}-${config.functionName}`;
+    params = {
+      FunctionName: `${deployEnvironment}-${config.serviceName}-${config.functionName}`,
+      Description: config.description,
+      Handler: config.handler,
+      Role: '',
+      Timeout: config.timeout || 30,
+      MemorySize: config.memorySize || 128,
+      Runtime: config.runtime || LAMBDA_RUNTIME
+    };
   }
   if (config.deploymentEnvironment && config.deploymentEnvironment.constructor === String) {
-    params.FunctionName = config.functionName;
+    params = {
+      FunctionName: config.functionName,
+      Description: config.description,
+      Handler: config.handler,
+      Role: '',
+      Timeout: config.timeout || 30,
+      MemorySize: config.memorySize || 128,
+      Runtime: config.runtime || LAMBDA_RUNTIME
+    };
   }
 
   return retryAwsCall(getLambdaFunction, 'getLambdaFunction', lambda, params.FunctionName)
@@ -173,17 +189,7 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
       if (!getResult.lambdaExists) {
         return createOrUpdateIAMRole(iamParams)
           .then(createResponse => {
-            // console.log(`createResponse:`);
-            // console.log(JSON.stringify(createResponse, null, 2));
-            params = {
-              FunctionName: config.functionName,
-              Description: config.description,
-              Handler: config.handler,
-              Role: createResponse.Arn,
-              Timeout: config.timeout || 30,
-              MemorySize: config.memorySize || 128,
-              Runtime: config.runtime || LAMBDA_RUNTIME
-            };
+            params.Role = createResponse.Arn;
           })
           .then(() => createLambdaFunction(lambda, codePackage, params))
           .then((createFunctionResult) => {
@@ -205,18 +211,7 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
       const existingFunctionArn = getResult.functionArn;
       return createOrUpdateIAMRole(iamParams)
         .then(updateResponse => {
-          console.log(`updateResponse:`);
-          console.log(JSON.stringify(updateResponse, null, 2));
-          params = {
-            FunctionName: config.functionName,
-            Description: config.description,
-            Handler: config.handler,
-            Role: updateResponse.Arn,
-            Timeout: config.timeout || 30,
-            MemorySize: config.memorySize || 128,
-            Runtime: config.runtime || LAMBDA_RUNTIME
-          };
-          console.log(JSON.stringify(params, null, 2));
+          params.Role = updateResponse.Arn;
         })
         .then(() => updateLambdaFunction(lambda, codePackage, params))
         .then(() => retryAwsCall(updateLambdaConfig, 'updateLambdaConfig', lambda, params))
@@ -345,8 +340,8 @@ const createOrUpdateIAMRole = (params) => {
       throw err;
     })
     .then(roleResponse => {
-      console.log(`roleResponse`);
-      console.log(JSON.stringify(roleResponse, null, 2));
+      // console.log(`roleResponse`);
+      // console.log(JSON.stringify(roleResponse, null, 2));
       role = roleResponse;
       return Promise.mapSeries(policies, policy => {
         // console.log(`Mapped Policy Document: ${JSON.stringify(policy, null, 2)}`);
