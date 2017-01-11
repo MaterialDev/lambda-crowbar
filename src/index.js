@@ -256,8 +256,8 @@ const cloneConfigObject = (config, deploymentParams) => {
   if (config.deploymentEnvironment && config.deploymentEnvironment.constructor === Array) {
     resultConfig.functionName = `${deployEnvironment}-${config.serviceName}-${config.functionName}`;
   }
-  console.log(`local config object`);
-  console.log(JSON.stringify(resultConfig, null, 2));
+  // console.log(`local config object`);
+  // console.log(JSON.stringify(resultConfig, null, 2));
   return resultConfig;
 };
 
@@ -334,7 +334,10 @@ const createOrUpdateIAMRole = (params) => {
     .catch(err => {
       if (err.code === 'NoSuchEntity') {
         console.log(`IAM Role not found. [Role Name: ${roleName}]`);
-        return createIAMRole(roleName);
+        return createIAMRole(roleName)
+          .then(() => {
+            return getIAMRole(roleName);
+          });
       }
       console.log(`err: ${JSON.stringify(err, null, 2)}`);
       throw err;
