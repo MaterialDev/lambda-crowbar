@@ -17,6 +17,8 @@ const nodeAwsLambda = () => {
   return this;
 };
 
+const deployedLambdas = [];
+
 nodeAwsLambda.prototype.deploy = (deploymentParams) => {
   if (!lodash.has(deploymentParams, 'zipFileName')) {
     throw new Error('deploymentParams must have field \'zipFileName\'');
@@ -49,7 +51,9 @@ nodeAwsLambda.prototype.deploy = (deploymentParams) => {
       }
     }
   }
-  return Promise.all(envLambdas);
+  return Promise.all(envLambdas).then(() => {
+    return deployedLambdas;
+  });
 };
 
 nodeAwsLambda.prototype.schedule = (scheduleParams) => {
@@ -184,6 +188,7 @@ const deployLambdaFunction = (deploymentParams, config, lambdaClient) => {
           .then(() => createLambdaFunction(lambda, codePackage, params))
           .then((createFunctionResult) => {
             functionArn = createFunctionResult.functionArn;
+            deployedLambdas.push(createFunctionResult);
           })
           .then(() => updateEventSource(lambda, localConfig))
           .then(() => updatePushSource(lambda, snsClient, localConfig, functionArn))
