@@ -52,6 +52,7 @@ nodeAwsLambda.prototype.deploy = (deploymentParams) => {
     }
   }
   return Promise.all(envLambdas).then(() => {
+    console.log(`about to return ${JSON.stringify(deployedLambdas)}`);
     return deployedLambdas;
   });
 };
