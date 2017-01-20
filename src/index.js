@@ -248,6 +248,7 @@ const getLambdaFunction = (lambdaClient, functionName) => {
       }
       else {
         console.log(`Lambda found! [LambdaName: ${functionName}]`);
+        deployedLambdas.push(data);
         resolve({
           lambdaExists: true,
           functionArn: data.Configuration.FunctionArn
